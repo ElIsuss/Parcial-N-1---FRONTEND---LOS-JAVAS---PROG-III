@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de gestión de librería</title>
+</head>
+<body>
+
+  <!-- Encabezado general de la aplicación -->
+  <header class="encabezado-aplicacion">
+    <h1 class="titulo-aplicacion">Gestión de Librería</h1>
+  </header>
+
+  <!-- Navegación principal entre las vistas -->
+  <nav class="navegacion-principal" aria-label="Navegación principal">
+    <ul class="lista-navegacion">
+      <li class="item-navegacion"><a class="enlace-navegacion" href="#catalogo">Catálogo</a></li>
+      <li class="item-navegacion"><a class="enlace-navegacion" href="#libros">Libros</a></li>
+      <li class="item-navegacion"><a class="enlace-navegacion" href="#clientes">Clientes</a></li>
+      <li class="item-navegacion"><a class="enlace-navegacion" href="#historial">Historial</a></li>
+      <li class="item-navegacion"><a class="enlace-navegacion" href="#ventas">Ventas</a></li>
+    </ul>
+  </nav>
+
+  <!-- Contenido principal de la aplicación -->
+  <main class="contenido-principal">
+
+    <!-- Vista: Catálogo -->
+    <section class="vista vista-catalogo" id="catalogo" aria-labelledby="catalogo-titulo">
+      <h2 class="titulo-vista" id="catalogo-titulo">Catálogo</h2>
+
+      <!-- Buscador por título -->
+      <form class="formulario formulario-busqueda-catalogo" id="formulario-busqueda-catalogo">
+        <div class="campo campo-busqueda">
+          <label class="etiqueta-campo" for="catalogo-busqueda-titulo">Título del libro</label>
+          <input
+            class="control-campo"
+            type="text"
+            id="catalogo-busqueda-titulo"
+            name="titulo"
+            aria-describedby="catalogo-ayuda-busqueda-titulo">
+          <p class="texto-ayuda" id="catalogo-ayuda-busqueda-titulo">
+            Se puede buscar por título.
+          </p>
+        </div>
+        <div class="acciones-formulario">
+          <button class="boton boton-buscar" type="submit">Buscar</button>
+          <button class="boton boton-limpiar-busqueda" type="reset">Limpiar búsqueda</button>
+        </div>
+      </form>
+
+      <!-- Listado de libros del catálogo -->
+      <table class="tabla tabla-catalogo" id="tabla-catalogo">
+        <caption class="titulo-tabla">Libros disponibles en el catálogo</caption>
+        <thead class="encabezado-tabla">
+          <tr class="fila-encabezado">
+            <th scope="col">Título</th>
+            <th scope="col">ISBN</th>
+            <th scope="col">Editorial</th>
+            <th scope="col">Género</th>
+            <th scope="col">Autores</th>
+            <th scope="col">Precio</th>
+          </tr>
+        </thead>
+        <tbody class="cuerpo-tabla">
+          <!-- Fila de estado vacío: los libros del catálogo se mostrarán aquí. -->
+          <tr class="fila-estado-vacio">
+            <td class="celda-estado-vacio" colspan="6">No hay libros disponibles en el catálogo.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="nota-catalogo" id="catalogo-nota-genero-sin-clasificar">
+        Los libros que no tienen un género asignado se muestran como Sin clasificar.
+      </p>
+
+      <!-- Espacios reservados para los estados de la búsqueda -->
+      <p class="mensaje mensaje-resultados-busqueda" id="catalogo-resultados-busqueda" role="status" hidden>
+        Resultados de la búsqueda por título.
+      </p>
+      <p class="mensaje mensaje-busqueda-sin-resultados" id="catalogo-busqueda-sin-resultados" role="status" hidden>
+        No se encontraron libros que coincidan con el título buscado.
+      </p>
+      <p class="mensaje mensaje-operacion-correcta" id="catalogo-operacion-correcta" role="status" hidden>
+        La operación solicitada se completó correctamente.
+      </p>
+      <p class="mensaje mensaje-operacion-rechazada" id="catalogo-operacion-rechazada" role="alert" hidden>
+        No se pudo completar la operación solicitada.
+      </p>
+    </section>
+
+    <!-- Vista: Libros -->
+    <section class="vista vista-libros" id="libros" aria-labelledby="libros-titulo">
+      <h2 class="titulo-vista" id="libros-titulo">Libros</h2>
+
+      <!-- Alta de libros -->
+      <section class="seccion-registro-libro" aria-labelledby="registrar-libro-titulo">
+        <h3 class="titulo-seccion" id="registrar-libro-titulo">Registrar libro</h3>
+
+        <form class="formulario formulario-registro-libro" id="formulario-registro-libro">
+          <fieldset class="grupo-campos grupo-datos-libro">
+            <legend class="titulo-grupo">Datos del libro</legend>
+
+            <div class="campo campo-titulo">
+              <label class="etiqueta-campo" for="libro-titulo">Título</label>
+              <input class="control-campo" type="text" id="libro-titulo" name="titulo">
+            </div>
+
+            <div class="campo campo-isbn">
+              <label class="etiqueta-campo" for="libro-isbn">ISBN</label>
+              <input
+                class="control-campo"
+                type="text"
+                id="libro-isbn"
+                name="isbn"
+                aria-describedby="libro-ayuda-isbn">
+              <p class="texto-ayuda" id="libro-ayuda-isbn">
+                Se admiten ceros iniciales y guiones.
+              </p>
+            </div>
+
+            <div class="campo campo-editorial">
+              <label class="etiqueta-campo" for="libro-editorial">Editorial</label>
+              <input class="control-campo" type="text" id="libro-editorial" name="editorial">
+            </div>
+
+            <div class="campo campo-genero">
+              <label class="etiqueta-campo" for="libro-genero">Género</label>
+              <select
+                class="control-campo"
+                id="libro-genero"
+                name="genero"
+                aria-describedby="libro-ayuda-genero">
+                <option value="">Sin clasificar</option>
+                <option value="novela">Novela (opción provisional)</option>
+                <option value="poesia">Poesía (opción provisional)</option>
+                <option value="ensayo">Ensayo (opción provisional)</option>
+                <option value="tecnico">Técnico (opción provisional)</option>
+              </select>
+              <p class="texto-ayuda" id="libro-ayuda-genero">
+                Las opciones de género son provisionales y están pendientes de completar.
+              </p>
+            </div>
+
+            <div class="campo campo-autores">
+              <label class="etiqueta-campo" for="libro-autores">Autores</label>
+              <input
+                class="control-campo"
+                type="text"
+                id="libro-autores"
+                name="autores"
+                aria-describedby="libro-ayuda-autores">
+              <p class="texto-ayuda" id="libro-ayuda-autores">
+                Se ingresan los autores asociados al libro.
+              </p>
+            </div>
+
+            <div class="campo campo-precio">
+              <label class="etiqueta-campo" for="libro-precio">Precio</label>
+              <input class="control-campo" type="number" id="libro-precio" name="precio" step="0.01">
+            </div>
+          </fieldset>
+
+          <div class="acciones-formulario">
+            <button class="boton boton-registrar-libro" type="submit">Registrar libro</button>
+            <button class="boton boton-limpiar-formulario" type="reset">Limpiar formulario</button>
+          </div>
+
+          <p class="mensaje mensaje-operacion-correcta" id="libros-operacion-correcta" role="status" hidden>
+            El libro se registró correctamente.
+          </p>
+          <p class="mensaje mensaje-operacion-rechazada" id="libros-operacion-rechazada" role="alert" hidden>
+            No se pudo registrar el libro.
+          </p>
+        </form>
+      </section>
+
+      <!-- Listado de libros registrados -->
+      <section class="seccion-libros-registrados" aria-labelledby="libros-registrados-titulo">
+        <h3 class="titulo-seccion" id="libros-registrados-titulo">Libros registrados</h3>
+
+        <table class="tabla tabla-libros-registrados" id="tabla-libros-registrados">
+          <caption class="titulo-tabla">Libros registrados en la librería</caption>
+          <thead class="encabezado-tabla">
+            <tr class="fila-encabezado">
+              <th scope="col">Título</th>
+              <th scope="col">ISBN</th>
+              <th scope="col">Editorial</th>
+              <th scope="col">Género</th>
+              <th scope="col">Autores</th>
+              <th scope="col">Precio</th>
+            </tr>
+          </thead>
+          <tbody class="cuerpo-tabla">
+            <!-- Fila de estado vacío: los libros registrados se mostrarán aquí. -->
+            <tr class="fila-estado-vacio">
+              <td class="celda-estado-vacio" colspan="6">Todavía no hay libros registrados.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+
+    <!-- Vista: Clientes -->
+    <section class="vista vista-clientes" id="clientes" aria-labelledby="clientes-titulo">
+      <h2 class="titulo-vista" id="clientes-titulo">Clientes</h2>
+
+      <!-- Alta de clientes -->
+      <section class="seccion-registro-cliente" aria-labelledby="registrar-cliente-titulo">
+        <h3 class="titulo-seccion" id="registrar-cliente-titulo">Registrar cliente</h3>
+
+        <form class="formulario formulario-registro-cliente" id="formulario-registro-cliente">
+          <fieldset class="grupo-campos grupo-datos-cliente">
+            <legend class="titulo-grupo">Datos del cliente</legend>
+
+            <div class="campo campo-nombre">
+              <label class="etiqueta-campo" for="cliente-nombre">Nombre</label>
+              <input class="control-campo" type="text" id="cliente-nombre" name="nombre">
+            </div>
+
+            <div class="campo campo-apellido">
+              <label class="etiqueta-campo" for="cliente-apellido">Apellido</label>
+              <input class="control-campo" type="text" id="cliente-apellido" name="apellido">
+            </div>
+
+            <div class="campo campo-documento">
+              <label class="etiqueta-campo" for="cliente-documento">Documento de identidad</label>
+              <input
+                class="control-campo"
+                type="text"
+                id="cliente-documento"
+                name="documento"
+                aria-describedby="cliente-ayuda-documento">
+              <p class="texto-ayuda" id="cliente-ayuda-documento">
+                Se conservan los ceros iniciales y el formato del documento.
+              </p>
+            </div>
+
+            <div class="campo campo-correo">
+              <label class="etiqueta-campo" for="cliente-correo">Correo electrónico</label>
+              <input class="control-campo" type="email" id="cliente-correo" name="correo">
+            </div>
+
+            <div class="campo campo-telefono">
+              <label class="etiqueta-campo" for="cliente-telefono">Teléfono</label>
+              <input class="control-campo" type="tel" id="cliente-telefono" name="telefono">
+            </div>
+          </fieldset>
+
+          <div class="acciones-formulario">
+            <button class="boton boton-registrar-cliente" type="submit">Registrar cliente</button>
+          </div>
+
+          <p class="mensaje mensaje-operacion-correcta" id="clientes-operacion-correcta" role="status" hidden>
+            El cliente se registró correctamente.
+          </p>
+          <p class="mensaje mensaje-operacion-rechazada" id="clientes-operacion-rechazada" role="alert" hidden>
+            No se pudo registrar el cliente.
+          </p>
+        </form>
+      </section>
+
+      <!-- Listado de clientes registrados -->
+      <section class="seccion-clientes-registrados" aria-labelledby="clientes-registrados-titulo">
+        <h3 class="titulo-seccion" id="clientes-registrados-titulo">Clientes registrados</h3>
+
+        <table class="tabla tabla-clientes-registrados" id="tabla-clientes-registrados">
+          <caption class="titulo-tabla">Clientes registrados en la librería</caption>
+          <thead class="encabezado-tabla">
+            <tr class="fila-encabezado">
+              <th scope="col">Nombre</th>
+              <th scope="col">Apellido</th>
+              <th scope="col">Documento</th>
+              <th scope="col">Correo electrónico</th>
+              <th scope="col">Teléfono</th>
+            </tr>
+          </thead>
+          <tbody class="cuerpo-tabla">
+            <!-- Fila de estado vacío: los clientes registrados se mostrarán aquí. -->
+            <tr class="fila-estado-vacio">
+              <td class="celda-estado-vacio" colspan="5">Todavía no hay clientes registrados.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+
+    <!-- Vista: Historial -->
+    <section class="vista vista-historial" id="historial" aria-labelledby="historial-titulo">
+      <h2 class="titulo-vista" id="historial-titulo">Historial</h2>
+
+      <!-- Listado de ventas -->
+      <section class="seccion-historial-ventas" aria-labelledby="historial-ventas-titulo">
+        <h3 class="titulo-seccion" id="historial-ventas-titulo">Historial de ventas</h3>
+
+        <table class="tabla tabla-ventas" id="tabla-ventas">
+          <caption class="titulo-tabla">Ventas registradas en la librería</caption>
+          <thead class="encabezado-tabla">
+            <tr class="fila-encabezado">
+              <th scope="col">Identificador de venta</th>
+              <th scope="col">Fecha</th>
+              <th scope="col">Cliente</th>
+              <th scope="col">Renglones</th>
+              <th scope="col">Importe total</th>
+              <th scope="col">Acción</th>
+            </tr>
+          </thead>
+          <tbody class="cuerpo-tabla">
+            <!-- Fila de estado vacío: cada venta registrada incorpora aquí su control de detalle. -->
+            <tr class="fila-estado-vacio">
+              <td class="celda-estado-vacio" colspan="5">Todavía no hay ventas registradas.</td>
+              <td class="celda-accion-venta">
+                <!-- El control para consultar los detalles se incluirá en cada fila cuando existan ventas. -->
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Detalles de venta -->
+      <section class="seccion-detalle-venta" aria-labelledby="detalle-venta-titulo">
+        <h3 class="titulo-seccion" id="detalle-venta-titulo">Detalle de venta</h3>
+
+        <dl class="datos-venta">
+          <dt class="dato-venta-etiqueta">Identificador de la venta</dt>
+          <dd class="dato-venta-valor" id="detalle-venta-identificador"><!-- Identificador de la venta seleccionada. --></dd>
+
+          <dt class="dato-venta-etiqueta">Fecha</dt>
+          <dd class="dato-venta-valor" id="detalle-venta-fecha"><!-- Fecha de la venta seleccionada. --></dd>
+
+          <dt class="dato-venta-etiqueta">Cliente</dt>
+          <dd class="dato-venta-valor" id="detalle-venta-cliente"><!-- Cliente de la venta seleccionada. --></dd>
+        </dl>
+
+        <table class="tabla tabla-detalle-venta" id="tabla-detalle-venta">
+          <caption class="titulo-tabla">Libros incluidos en la venta seleccionada</caption>
+          <thead class="encabezado-tabla">
+            <tr class="fila-encabezado">
+              <th scope="col">Libro</th>
+              <th scope="col">Cantidad</th>
+              <th scope="col">Precio unitario</th>
+              <th scope="col">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody class="cuerpo-tabla">
+            <!-- Fila de estado vacío: los renglones de la venta se mostrarán aquí. -->
+            <tr class="fila-estado-vacio">
+              <td class="celda-estado-vacio" colspan="4">Todavía no hay detalles de venta para mostrar.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p class="importe-total-venta">
+          <strong class="etiqueta-importe-total">Importe total de la venta:</strong>
+          <span class="valor-importe-total" id="detalle-venta-importe-total"><!-- Importe total de la venta seleccionada. --></span>
+        </p>
+
+        <p class="mensaje mensaje-sin-detalles" id="detalle-venta-sin-detalles" hidden>
+          La venta seleccionada no tiene detalles disponibles.
+        </p>
+      </section>
+    </section>
+
+    <!-- Vista: Ventas -->
+    <section class="vista vista-ventas" id="ventas" aria-labelledby="ventas-titulo">
+      <h2 class="titulo-vista" id="ventas-titulo">Ventas</h2>
+
+      <form class="formulario formulario-venta" id="formulario-venta">
+
+        <!-- Selección del cliente -->
+        <section class="seccion-nueva-venta" aria-labelledby="nueva-venta-titulo">
+          <h3 class="titulo-seccion" id="nueva-venta-titulo">Nueva venta</h3>
+
+          <fieldset class="grupo-campos grupo-cliente-venta">
+            <legend class="titulo-grupo">Cliente de la venta</legend>
+
+            <div class="campo campo-cliente">
+              <label class="etiqueta-campo" for="venta-cliente">Cliente</label>
+              <select
+                class="control-campo"
+                id="venta-cliente"
+                name="cliente"
+                aria-describedby="venta-ayuda-cliente">
+                <option value="">Seleccionar un cliente</option>
+              </select>
+              <p class="texto-ayuda" id="venta-ayuda-cliente">
+                La lista de clientes se completará con los clientes registrados.
+              </p>
+            </div>
+          </fieldset>
+        </section>
+
+        <!-- Composición de renglones -->
+        <section class="seccion-libros-venta" aria-labelledby="libros-venta-titulo">
+          <h3 class="titulo-seccion" id="libros-venta-titulo">Libros de la venta</h3>
+
+          <fieldset class="grupo-campos grupo-agregar-renglon">
+            <legend class="titulo-grupo">Agregar libro a la venta</legend>
+
+            <div class="campo campo-libro">
+              <label class="etiqueta-campo" for="venta-libro">Libro</label>
+              <select
+                class="control-campo"
+                id="venta-libro"
+                name="libro"
+                aria-describedby="venta-ayuda-libro">
+                <option value="">Seleccionar un libro</option>
+              </select>
+              <p class="texto-ayuda" id="venta-ayuda-libro">
+                La lista de libros se completará con los libros registrados.
+              </p>
+            </div>
+
+            <div class="campo campo-cantidad">
+              <label class="etiqueta-campo" for="venta-cantidad">Cantidad</label>
+              <input class="control-campo" type="number" id="venta-cantidad" name="cantidad" step="1">
+            </div>
+
+            <div class="acciones-formulario">
+              <button class="boton boton-agregar-libro" type="button">Agregar libro</button>
+            </div>
+          </fieldset>
+
+          <table class="tabla tabla-renglones-venta" id="tabla-renglones-venta">
+            <caption class="titulo-tabla">Renglones de la venta en curso</caption>
+            <thead class="encabezado-tabla">
+              <tr class="fila-encabezado">
+                <th scope="col">Libro</th>
+                <th scope="col">Precio unitario</th>
+                <th scope="col">Cantidad</th>
+                <th scope="col">Subtotal</th>
+                <th scope="col">Acción</th>
+              </tr>
+            </thead>
+            <tbody class="cuerpo-tabla">
+              <!-- Fila de estado vacío: los renglones de la venta se mostrarán aquí. -->
+              <tr class="fila-estado-vacio">
+                <td class="celda-estado-vacio" colspan="5">Todavía no hay libros agregados a la venta.</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <fieldset class="grupo-acciones grupo-acciones-renglones">
+            <legend class="titulo-grupo">Acciones sobre los renglones</legend>
+            <button class="boton boton-quitar-renglon" type="button">Quitar renglón</button>
+          </fieldset>
+        </section>
+
+        <!-- Resumen de la venta -->
+        <section class="seccion-resumen-venta" aria-labelledby="resumen-venta-titulo">
+          <h3 class="titulo-seccion" id="resumen-venta-titulo">Resumen de la venta</h3>
+
+          <dl class="datos-resumen-venta">
+            <dt class="dato-resumen-etiqueta">Cliente seleccionado</dt>
+            <dd class="dato-resumen-valor" id="resumen-venta-cliente"><!-- Cliente de la venta en curso. --></dd>
+
+            <dt class="dato-resumen-etiqueta">Cantidad total de unidades</dt>
+            <dd class="dato-resumen-valor" id="resumen-venta-cantidad-unidades"><!-- Unidades de la venta en curso. --></dd>
+
+            <dt class="dato-resumen-etiqueta">Importe total</dt>
+            <dd class="dato-resumen-valor" id="resumen-venta-importe-total"><!-- Importe total de la venta en curso. --></dd>
+          </dl>
+        </section>
+
+        <!-- Confirmación de la venta -->
+        <div class="acciones-formulario acciones-confirmacion-venta">
+          <button class="boton boton-registrar-venta" type="submit">Registrar venta</button>
+        </div>
+
+        <p class="mensaje mensaje-operacion-correcta" id="venta-operacion-correcta" role="status" hidden>
+          La venta se registró correctamente.
+        </p>
+        <p class="mensaje mensaje-operacion-rechazada" id="venta-operacion-rechazada" role="alert" hidden>
+          No se pudo registrar la venta.
+        </p>
+      </form>
+    </section>
+
+  </main>
+
+  <!-- Pie de página -->
+  <footer class="pie-pagina">
+    <p class="texto-pie">Sistema de gestión de librería. Etapa 1: estructura HTML.</p>
+  </footer>
+
+</body>
+</html>
