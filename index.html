@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema de gestión de librería</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
@@ -51,7 +52,8 @@
       </form>
 
       <!-- Listado de libros del catálogo -->
-      <table class="tabla tabla-catalogo" id="tabla-catalogo">
+      <div class="tabla-contenedor">
+        <table class="tabla tabla-catalogo" id="tabla-catalogo">
         <caption class="titulo-tabla">Libros disponibles en el catálogo</caption>
         <thead class="encabezado-tabla">
           <tr class="fila-encabezado">
@@ -70,6 +72,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
 
       <p class="nota-catalogo" id="catalogo-nota-genero-sin-clasificar">
         Los libros que no tienen un género asignado se muestran como Sin clasificar.
@@ -176,11 +179,12 @@
         </form>
       </section>
 
-      <!-- Listado de libros registrados -->
-      <section class="seccion-libros-registrados" aria-labelledby="libros-registrados-titulo">
-        <h3 class="titulo-seccion" id="libros-registrados-titulo">Libros registrados</h3>
+<!-- Listado de libros registrados -->
+       <section class="seccion-libros-registrados" aria-labelledby="libros-registrados-titulo">
+         <h3 class="titulo-seccion" id="libros-registrados-titulo">Libros registrados</h3>
 
-        <table class="tabla tabla-libros-registrados" id="tabla-libros-registrados">
+         <div class="tabla-contenedor">
+           <table class="tabla tabla-libros-registrados" id="tabla-libros-registrados">
           <caption class="titulo-tabla">Libros registrados en la librería</caption>
           <thead class="encabezado-tabla">
             <tr class="fila-encabezado">
@@ -199,6 +203,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </section>
     </section>
 
@@ -261,11 +266,12 @@
         </form>
       </section>
 
-      <!-- Listado de clientes registrados -->
-      <section class="seccion-clientes-registrados" aria-labelledby="clientes-registrados-titulo">
-        <h3 class="titulo-seccion" id="clientes-registrados-titulo">Clientes registrados</h3>
+<!-- Listado de clientes registrados -->
+       <section class="seccion-clientes-registrados" aria-labelledby="clientes-registrados-titulo">
+         <h3 class="titulo-seccion" id="clientes-registrados-titulo">Clientes registrados</h3>
 
-        <table class="tabla tabla-clientes-registrados" id="tabla-clientes-registrados">
+         <div class="tabla-contenedor">
+           <table class="tabla tabla-clientes-registrados" id="tabla-clientes-registrados">
           <caption class="titulo-tabla">Clientes registrados en la librería</caption>
           <thead class="encabezado-tabla">
             <tr class="fila-encabezado">
@@ -283,6 +289,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </section>
     </section>
 
@@ -290,11 +297,12 @@
     <section class="vista vista-historial" id="historial" aria-labelledby="historial-titulo">
       <h2 class="titulo-vista" id="historial-titulo">Historial</h2>
 
-      <!-- Listado de ventas -->
-      <section class="seccion-historial-ventas" aria-labelledby="historial-ventas-titulo">
-        <h3 class="titulo-seccion" id="historial-ventas-titulo">Historial de ventas</h3>
+<!-- Listado de ventas -->
+       <section class="seccion-historial-ventas" aria-labelledby="historial-ventas-titulo">
+         <h3 class="titulo-seccion" id="historial-ventas-titulo">Historial de ventas</h3>
 
-        <table class="tabla tabla-ventas" id="tabla-ventas">
+         <div class="tabla-contenedor">
+           <table class="tabla tabla-ventas" id="tabla-ventas">
           <caption class="titulo-tabla">Ventas registradas en la librería</caption>
           <thead class="encabezado-tabla">
             <tr class="fila-encabezado">
@@ -316,6 +324,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </section>
 
       <!-- Detalles de venta -->
@@ -333,23 +342,25 @@
           <dd class="dato-venta-valor" id="detalle-venta-cliente"><!-- Cliente de la venta seleccionada. --></dd>
         </dl>
 
-        <table class="tabla tabla-detalle-venta" id="tabla-detalle-venta">
-          <caption class="titulo-tabla">Libros incluidos en la venta seleccionada</caption>
-          <thead class="encabezado-tabla">
-            <tr class="fila-encabezado">
-              <th scope="col">Libro</th>
-              <th scope="col">Cantidad</th>
-              <th scope="col">Precio unitario</th>
-              <th scope="col">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody class="cuerpo-tabla">
-            <!-- Fila de estado vacío: los renglones de la venta se mostrarán aquí. -->
-            <tr class="fila-estado-vacio">
-              <td class="celda-estado-vacio" colspan="4">Todavía no hay detalles de venta para mostrar.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="tabla-contenedor">
+          <table class="tabla tabla-detalle-venta" id="tabla-detalle-venta">
+            <caption class="titulo-tabla">Libros incluidos en la venta seleccionada</caption>
+            <thead class="encabezado-tabla">
+              <tr class="fila-encabezado">
+                <th scope="col">Libro</th>
+                <th scope="col">Cantidad</th>
+                <th scope="col">Precio unitario</th>
+                <th scope="col">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody class="cuerpo-tabla">
+              <!-- Fila de estado vacío: los renglones de la venta se mostrarán aquí. -->
+              <tr class="fila-estado-vacio">
+                <td class="celda-estado-vacio" colspan="4">Todavía no hay detalles de venta para mostrar.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
         <p class="importe-total-venta">
           <strong class="etiqueta-importe-total">Importe total de la venta:</strong>
@@ -422,24 +433,26 @@
             </div>
           </fieldset>
 
-          <table class="tabla tabla-renglones-venta" id="tabla-renglones-venta">
-            <caption class="titulo-tabla">Renglones de la venta en curso</caption>
-            <thead class="encabezado-tabla">
-              <tr class="fila-encabezado">
-                <th scope="col">Libro</th>
-                <th scope="col">Precio unitario</th>
-                <th scope="col">Cantidad</th>
-                <th scope="col">Subtotal</th>
-                <th scope="col">Acción</th>
-              </tr>
-            </thead>
-            <tbody class="cuerpo-tabla">
-              <!-- Fila de estado vacío: los renglones de la venta se mostrarán aquí. -->
-              <tr class="fila-estado-vacio">
-                <td class="celda-estado-vacio" colspan="5">Todavía no hay libros agregados a la venta.</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="tabla-contenedor">
+            <table class="tabla tabla-renglones-venta" id="tabla-renglones-venta">
+              <caption class="titulo-tabla">Renglones de la venta en curso</caption>
+              <thead class="encabezado-tabla">
+                <tr class="fila-encabezado">
+                  <th scope="col">Libro</th>
+                  <th scope="col">Precio unitario</th>
+                  <th scope="col">Cantidad</th>
+                  <th scope="col">Subtotal</th>
+                  <th scope="col">Acción</th>
+                </tr>
+              </thead>
+              <tbody class="cuerpo-tabla">
+                <!-- Fila de estado vacío: los renglones de la venta se mostrarán aquí. -->
+                <tr class="fila-estado-vacio">
+                  <td class="celda-estado-vacio" colspan="5">Todavía no hay libros agregados a la venta.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
           <fieldset class="grupo-acciones grupo-acciones-renglones">
             <legend class="titulo-grupo">Acciones sobre los renglones</legend>
