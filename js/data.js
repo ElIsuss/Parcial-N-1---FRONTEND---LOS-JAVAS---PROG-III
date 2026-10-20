@@ -2,7 +2,7 @@
 // DATA.JS — Repository Pattern + localStorage + Semilla
 // ========================================
 
-import { normalizeISBN } from './utils.js';
+import { normalizeISBN, generateId, isValidEmail } from './utils.js';
 
 // ========================================
 // ESTADO PRIVADO (no exportado directamente)
@@ -246,8 +246,79 @@ export const Data = {
    * @returns {{ok: boolean, errors: string[], libro?: Object}}
    */
   crearLibro(libro) {
-    // TODO: Implementar en C-04
-    return { ok: false, errors: ['No implementado (C-04)'] };
+    const errors = [];
+
+    const titulo = String(libro?.titulo ?? '').trim();
+    const isbn = String(libro?.isbn ?? '').trim();
+    const precio = Number(libro?.precio);
+    const editorialId = libro?.editorialId ?? '';
+    const generoId = libro?.generoId ?? '';
+    const autorIds = Array.isArray(libro?.autorIds)
+      ? libro.autorIds
+      : (libro?.autorIds ? [libro.autorIds] : []);
+
+    // RN-LIB-01: título requerido
+    if (titulo === '') errors.push('El título es obligatorio.');
+
+    // RN-LIB-02, RN-LIB-08: ISBN requerido y único (normalizado)
+    const isbnNormalizado = normalizeISBN(isbn);
+    if (isbnNormalizado === '') {
+      errors.push('El ISBN es obligatorio.');
+    } else if (_isbnExists(isbnNormalizado)) {
+      errors.push('El ISBN ya está registrado.');
+    }
+
+    // RN-LIB-03: precio numérico > 0
+    if (!Number.isFinite(precio) || precio <= 0) {
+      errors.push('El precio debe ser un número mayor a 0.');
+    }
+
+    // RN-LIB-04: editorial obligatoria y existente
+    if (!editorialId || !_findEditorialById(editorialId)) {
+      errors.push('Debe seleccionar una editorial existente.');
+    }
+
+    // RN-LIB-05: género opcional; si se elige, debe existir
+    let generoFinal = null;
+    if (generoId) {
+      if (!_findGeneroById(generoId)) {
+        errors.push('El género seleccionado no existe.');
+      } else {
+        generoFinal = generoId;
+      }
+    }
+
+    // RN-LIB-06: al menos un autor existente
+    const autores = autorIds.filter(id => id);
+    if (autores.length < 1) {
+      errors.push('Debe seleccionar al menos un autor.');
+    } else if (autores.some(id => !_findAutorById(id))) {
+      errors.push('Uno o más autores seleccionados no existen.');
+    }
+
+    if (errors.length > 0) {
+      return { ok: false, errors };
+    }
+
+    // DEC-08: ID estable con re-generación si colisiona
+    let id = generateId();
+    while (_findLibroById(id)) {
+      id = generateId();
+    }
+
+    const libroCreado = {
+      id,
+      titulo,
+      isbn,
+      precio,
+      editorialId,
+      generoId: generoFinal,
+      autorIds: autores
+    };
+
+    _state.libros.push(libroCreado);
+    this.guardarTodos();
+    return { ok: true, errors: [], libro: libroCreado };
   },
 
   /**
@@ -256,8 +327,39 @@ export const Data = {
    * @returns {{ok: boolean, errors: string[], cliente?: Object}}
    */
   crearCliente(cliente) {
-    // TODO: Implementar en C-04
-    return { ok: false, errors: ['No implementado (C-04)'] };
+    const errors = [];
+
+    const nombreCompleto = String(cliente?.nombreCompleto ?? '').trim();
+    const email = String(cliente?.email ?? '').trim();
+
+    // RN-CLI-01: nombre completo requerido
+    if (nombreCompleto === '') errors.push('El nombre completo es obligatorio.');
+
+    // RN-CLI-02: email requerido y formato válido
+    if (email === '') {
+      errors.push('El email es obligatorio.');
+    } else if (!isValidEmail(email)) {
+      errors.push('El formato del email no es válido.');
+    } else if (_emailExists(email.toLowerCase())) {
+      // RN-CLI-03: email único case-insensitive (ya viene con trim)
+      errors.push('El email ya está registrado.');
+    }
+
+    if (errors.length > 0) {
+      return { ok: false, errors };
+    }
+
+    // DEC-08: ID estable con re-generación si colisiona
+    let id = generateId();
+    while (_findClienteById(id)) {
+      id = generateId();
+    }
+
+    const clienteCreado = { id, nombreCompleto, email };
+
+    _state.clientes.push(clienteCreado);
+    this.guardarTodos();
+    return { ok: true, errors: [], cliente: clienteCreado };
   },
 
   /**

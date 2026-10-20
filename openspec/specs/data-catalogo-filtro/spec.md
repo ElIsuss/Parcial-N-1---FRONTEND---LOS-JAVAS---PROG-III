@@ -1,311 +1,154 @@
-# Spec: Data, Catálogo y Filtro (Delta C-03)
+# data-catalogo-filtro Specification
 
-> Especificación delta para el change C-03. Extiende la arquitectura base (C-01, C-02) con capa de datos, renderizado de catálogo y filtro por título.
+## Purpose
 
-## Capability Path
-`data-catalogo-filtro`
+Define la capa de datos en memoria (repository con semilla y persistencia en localStorage), las utilidades compartidas y el comportamiento del catálogo: renderizado de libros, filtro por título y poblado de selectores desde los datos locales.
 
-## Dependencias
-- `estructura-base-navegacion` (C-01) — hooks HTML, estructura SPA
-- `css-mobile-first-accesibilidad` (C-02) — estilos, navegación JS (`mostrarVista`)
+## Requirements
 
----
+### Requirement: Inicialización de la capa de datos
+El sistema SHALL exponer un repository `Data` que inicializa su estado en memoria con la semilla la primera vez y recupera de localStorage en inicios posteriores, sin duplicar datos. La inicialización SHALL ser sincrónica (sin Promises ni `throw`).
+RN-PER-02, RN-PER-03, DEC-03, DEC-12.
 
-## 1. Modelo de Datos en Memoria (`js/data.js`)
+#### Scenario: Primer inicio carga la semilla
+- **WHEN** no existe el flag `libreria_inicializado` en localStorage
+- **THEN** se cargan los arrays semilla (`editoriales`, `generos`, `autores`, `libros`, `clientes`, `ventas`), se persisten con `guardarTodos()` y se setea el flag `libreria_inicializado`
 
-### 1.1 Estado Global (Repository Pattern)
-```javascript
-const Data = {
-  // Arrays en memoria (single source of truth)
-  libros: [],
-  editoriales: [],
-  generos: [],
-  autores: [],
-  clientes: [],
-  ventas: [],
+#### Scenario: Inicio posterior recupera de localStorage
+- **WHEN** el flag `libreria_inicializado` ya existe
+- **THEN** se leen las claves `libreria_libros`, `libreria_clientes`, `libreria_ventas` (y opcionales `libreria_editoriales/generos/autores`) y se pueblan los arrays internos sin volver a cargar la semilla
 
-  // Flag de inicialización
-  _inicializado: false,
-}
-```
+#### Scenario: localStorage corrupto o vacío usa semilla
+- **WHEN** el parseo de localStorage falla o devuelve arrays vacíos
+- **THEN** se registra una advertencia por consola y se cae al fallback de semilla sin lanzar excepción
 
-### 1.2 Datos Semilla (Mínimos Requeridos)
-```javascript
-const SEED = {
-  editoriales: [
-    { id: "ed1", nombre: "Editorial Sudamericana" },
-    { id: "ed2", nombre: "Penguin Random House" }
-  ],
-  generos: [
-    { id: "gen1", nombre: "Ficción" },
-    { id: "gen2", nombre: "No Ficción" }
-  ],
-  autores: [
-    { id: "aut1", nombre: "Jorge Luis Borges" },
-    { id: "aut2", nombre: "Julio Cortázar" },
-    { id: "aut3", nombre: "Adolfo Bioy Casares" }
-  ],
-  libros: [
-    { id: "lib1", titulo: "Ficciones", isbn: "978-987-1234-56-7", precio: 1500.00, editorialId: "ed1", generoId: "gen1", autorIds: ["aut1", "aut2"] },
-    { id: "lib2", titulo: "Rayuela", isbn: "978-950-07-1234-5", precio: 2200.00, editorialId: "ed2", generoId: "gen1", autorIds: ["aut2"] },
-    { id: "lib3", titulo: "El Aleph", isbn: "978-987-6543-21-0", precio: 1800.00, editorialId: "ed1", generoId: "gen1", autorIds: ["aut1"] },
-    { id: "lib4", titulo: "Sapiens: De animales a dioses", isbn: "978-84-397-3456-7", precio: 3500.00, editorialId: "ed2", generoId: "gen2", autorIds: ["aut3"] },
-    { id: "lib5", titulo: "Historia de la lectira", isbn: "978-950-12-3456-7", precio: 2800.00, editorialId: "ed1", generoId: "gen2", autorIds: ["aut1", "aut3"] },
-    { id: "lib6", titulo: "Cuentos completos", isbn: "978-987-1111-22-2", precio: 1900.00, editorialId: "ed2", generoId: null, autorIds: ["aut2", "aut3"] }
-  ],
-  clientes: [
-    { id: "cli1", nombreCompleto: "Juan Pérez", email: "juan@email.com" },
-    { id: "cli2", nombreCompleto: "María García", email: "maria@email.com" },
-    { id: "cli3", nombreCompleto: "Carlos López", email: "carlos@email.com" }
-  ],
-  ventas: []
-}
-```
+### Requirement: Datos semilla con IDs estables
+El sistema SHALL proveer datos semilla mínimos (2 editoriales, 2 géneros, 3 autores, 6 libros, 3 clientes, 0 ventas) con IDs pregenerados y estables (no derivados de índices ni de `Date.now()`).
+SUP-08.
 
-### 1.3 API Pública (ES Module Exports)
+#### Scenario: Semilla disponible tras inicializar
+- **WHEN** `Data.inicializar()` corre en un entorno limpio
+- **THEN** `Data.getLibros()` retorna 6 libros, `Data.getClientes()` 3, `Data.getEditoriales()` 2, `Data.getGeneros()` 2 y `Data.getAutores()` 3
 
-#### `Data.inicializar()`
-- Si `!localStorage.getItem('libreria_inicializado')` → `cargarSemilla()` + `guardarTodos()` + set flag
-- Sino → leer `libreria_libros`, `libreria_clientes`, `libreria_ventas` (+ opcionales editoriales/géneros/autores) → poblar arrays
-- Setea `Data._inicializado = true`
-- **No lanza**, no retorna Promise (sync)
+#### Scenario: IDs de semilla estables entre sesiones
+- **WHEN** se recarga la página
+- **THEN** los IDs de los registros semilla (p. ej. `lib1`, `ed1`, `aut1`) no cambian
 
-#### `Data.cargarSemilla()`
-- Pobla arrays internos con `SEED` (copia profunda)
-- IDs ya vienen pregenerados en semilla (estables)
+### Requirement: Persistencia de los arrays en localStorage
+El sistema SHALL persistir el estado con `guardarTodos()` bajo claves versionadas y tolerar fallos de escritura sin interrumpir la aplicación.
+RN-PER-01, RN-PER-04.
 
-#### `Data.guardarTodos()`
-- `localStorage.setItem('libreria_libros', JSON.stringify(Data.libros))`
-- `localStorage.setItem('libreria_clientes', JSON.stringify(Data.clientes))`
-- `localStorage.setItem('libreria_ventas', JSON.stringify(Data.ventas))`
-- Opcional: `libreria_editoriales`, `libreria_generos`, `libreria_autores`
-- `localStorage.setItem('libreria_inicializado', 'true')`
+#### Scenario: Guardado de claves mínimas
+- **WHEN** se invoca `Data.guardarTodos()`
+- **THEN** se escriben `libreria_libros`, `libreria_clientes` y `libreria_ventas` (y las claves opcionales de apoyo)
 
-#### Getters (Read-Only, retornan copias)
-- `Data.getLibros()` → `[...Data.libros]`
-- `Data.getEditoriales()` → `[...Data.editoriales]`
-- `Data.getGeneros()` → `[...Data.generos]`
-- `Data.getAutores()` → `[...Data.autores]`
-- `Data.getClientes()` → `[...Data.clientes]`
-- `Data.getVentas()` → `[...Data.ventas]`
+#### Scenario: Error de escritura no aborta
+- **WHEN** `localStorage.setItem` falla (p. ej. cuota excedida)
+- **THEN** el error se registra por consola y la ejecución continúa (sin excepción propagada)
 
-#### Helpers internos (no exportados, usados por mutaciones futuras C-04+)
-- `Data._findLibroById(id)`
-- `Data._findClienteById(id)`
-- `Data._findEditorialById(id)`
-- etc.
+### Requirement: Getters de solo lectura
+El sistema SHALL exponer getters `getLibros`, `getEditoriales`, `getGeneros`, `getAutores`, `getClientes` y `getVentas` que retornan copias de los arrays internos, de modo que el consumidor no pueda mutar el estado del repository.
 
-#### Mutaciones (stubs en C-03, implementadas en C-04/C-05)
-- `Data.crearLibro(libro)` — validaciones RN-LIB-01..06 + push + save — **C-04**
-- `Data.crearCliente(cliente)` — validaciones RN-CLI-01..03 + push + save — **C-04**
-- `Data.crearVenta(venta)` — validaciones RN-VTA-01..10 + push + save — **C-05**
+#### Scenario: El getter retorna una copia
+- **WHEN** un consumidor obtiene un array vía getter y lo modifica
+- **THEN** el array interno del repository permanece sin cambios
 
-### 1.4 Reglas de Negocio Aplicadas
-- **RN-PER-01**: Claves localStorage mínimas
-- **RN-PER-02**: Carga semilla primer inicio
-- **RN-PER-03**: Recuperación sin duplicados (flag)
-- **RN-PER-04**: Persistencia opcional catálogos apoyo
-- **DEC-03**: Repository pattern centralizado
-- **DEC-12**: Flag `libreria_inicializado`
+### Requirement: Contrato de mutaciones sincrónicas
+El sistema SHALL exponer `crearLibro`, `crearCliente` y `crearVenta` con el contrato `{ok, errors[], <entidad>?}` y validación sincrónica, sin lanzar excepciones ni usar callbacks.
+DEC-13.
 
----
+#### Scenario: Resultado con errores
+- **WHEN** se invoca una mutación con datos inválidos
+- **THEN** retorna `{ok: false, errors: [...]}` y NO muta el estado
 
-## 2. Utilidades Compartidas (`js/utils.js`)
+#### Scenario: Resultado exitoso
+- **WHEN** se invoca una mutación con datos válidos
+- **THEN** retorna `{ok: true, errors: [], <entidad>}` con el registro creado
 
-### 2.1 Exports
+### Requirement: Utilidades compartidas
+El sistema SHALL ofrecer utilidades reutilizables: `normalizeISBN` (quita espacios y guiones, mayúsculas), `formatPriceARS` (moneda ARS con 2 decimales), `isValidEmail` (regex básica con trim), `generateId` (ID estable tipo `Date.now().toString(36)` + random) y `debounce`.
+RN-LIB-08, DEC-05, DEC-06, DEC-08, SUP-06, SUP-08.
 
-#### `normalizeISBN(isbn: string): string`
-```javascript
-export function normalizeISBN(isbn) {
-  return String(isbn).replace(/[\s-]/g, '').toUpperCase();
-}
-```
-- **RN-LIB-02, RN-LIB-08, DEC-05**: Comparación sin espacios/guiones, case-insensitive
+#### Scenario: Normalización de ISBN
+- **WHEN** se llama `normalizeISBN('978-987-1234-56-7')`
+- **THEN** retorna `'9789871234567'`
 
-#### `formatPriceARS(amount: number): string`
-```javascript
-export function formatPriceARS(amount) {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    minimumFractionDigits: 2
-  }).format(amount);
-}
-```
-- **SUP-06**: Formato ARS 2 decimales
+#### Scenario: Formato de precio
+- **WHEN** se llama `formatPriceARS(1500)`
+- **THEN** retorna un string en es-AR con 2 decimales (p. ej. `$ 1.500,00`)
 
-#### `isValidEmail(email: string): boolean`
-```javascript
-export function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
-}
-```
-- **RN-CLI-02, DEC-06**: Formato básico + trim
+#### Scenario: Validación de email
+- **WHEN** se llama `isValidEmail` con un valor sin `@` o sin dominio
+- **THEN** retorna `false`; con un formato básico válido retorna `true`
 
-#### `generateId(): string`
-```javascript
-export function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-}
-```
-- **DEC-08, SUP-08**: IDs estables, no índices array
+### Requirement: Renderizado del catálogo
+El sistema SHALL renderizar el listado de libros en `#contenedor-catalogo` como tarjetas, resolviendo los nombres de editorial, género y autores desde los datos locales, mostrando "Sin clasificar" cuando el género es `null` y formateando el precio en ARS. Si no hay resultados, SHALL mostrar el mensaje `#mensaje-catalogo-vacio`.
+RN-CAT-04, RN-CAT-05, RN-LIB-07, RN-UX-02.
 
-#### `debounce(fn: Function, ms: number): Function`
-```javascript
-export function debounce(fn, ms) {
-  let timer;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), ms);
-  };
-}
-```
-- **PA-12**: Para filtro futuro (no obligatorio en C-03)
+#### Scenario: Catálogo con libros
+- **WHEN** `renderCatalogo` recibe ≥1 libro
+- **THEN** el contenedor es visible y muestra una tarjeta por libro con título, metadatos (ISBN, editorial, género, autores) y precio
 
----
+#### Scenario: Libro sin género
+- **WHEN** un libro tiene `generoId: null`
+- **THEN** la tarjeta muestra "Sin clasificar" en el género
 
-## 3. Catálogo y Filtro (`js/catalogo.js`)
+#### Scenario: Catálogo vacío
+- **WHEN** `renderCatalogo` recibe un array vacío
+- **THEN** el grid se oculta y se muestra el mensaje de vacío
 
-### 3.1 Exports
+### Requirement: Filtro de catálogo por título
+El sistema SHALL filtrar los libros por coincidencia parcial en el título, insensible a mayúsculas y con `trim`. Un término vacío SHALL retornar el catálogo completo; sin coincidencias SHALL mostrar el mensaje de vacío.
+RN-CAT-01, RN-CAT-02, RN-CAT-03.
 
-#### `renderCatalogo(libros: Libro[]): void`
-- Selecciona `#contenedor-catalogo` (`.catalogo-grid`, role="list")
-- Limpia contenido previo de forma segura: `while (contenedor.firstChild) contenedor.removeChild(contenedor.firstChild)` (sin `innerHTML`, **DEC-11**)
-- Si `libros.length === 0`:
-  - Oculta contenedor grid
-  - Muestra `#mensaje-catalogo-vacio` (hidden=false)
-- Sino:
-  - Muestra contenedor grid
-  - Oculta mensaje vacío
-  - Para cada libro:
-    - Crea `<article class="libro-card">`
-    - `<h3>` → `libro.titulo` (textContent)
-    - `<p class="meta">` → ISBN, Editorial (nombre via lookup), Género (nombre o "Sin clasificar" **RN-CAT-04**), Autores (nombres via lookup, join ", ")
-    - `<p class="precio">` → `formatPriceARS(libro.precio)`
-    - Append al contenedor
-- **DEC-11**: Solo `textContent`/`createTextNode`/`appendChild` — **NUNCA** `innerHTML`
+#### Scenario: Búsqueda con coincidencia
+- **WHEN** se filtra por "borges" (o "Borges"/" BORGES ")
+- **THEN** el resultado incluye los libros cuyo título contiene el término
 
-#### `filtrarLibros(termino: string): Libro[]`
-```javascript
-export function filtrarLibros(termino) {
-  const t = String(termino).trim().toLowerCase();
-  if (!t) return Data.getLibros(); // RN-CAT-02
-  return Data.getLibros().filter(libro =>
-    libro.titulo.toLowerCase().includes(t) // RN-CAT-01
-  );
-}
-```
-- Trim + lowercase + substring match
-- Vacío → todos (RN-CAT-02)
+#### Scenario: Búsqueda vacía
+- **WHEN** el término es vacío o solo espacios
+- **THEN** se retornan todos los libros
 
-#### `bindBusqueda(): void`
-- Selecciona `#form-busqueda`, `#input-busqueda`, `#btn-limpiar-busqueda`
-- Event `submit` en form: `preventDefault()` → `filtrarLibros(input.value)` → `renderCatalogo(resultado)`
-- Event `input` en input: filtrado inmediato (sin debounce obligatorio, **PA-12**)
-  - `filtrarLibros(input.value)` → `renderCatalogo(resultado)`
-  - Si `input.value.trim()` → muestra `#btn-limpiar-busqueda` (hidden=false)
-  - Sino → oculta botón limpiar
-- Click `#btn-limpiar-busqueda`: `input.value = ''` → `renderCatalogo(Data.getLibros())` → oculta botón
+#### Scenario: Búsqueda sin resultados
+- **WHEN** ningún título contiene el término
+- **THEN** el resultado es vacío y se muestra el mensaje de "sin resultados"
 
-### 3.2 Poblar Selects (Helpers internos, llamados desde app.js)
+### Requirement: Interacción de búsqueda
+El sistema SHALL vincular el formulario y el input de búsqueda: el `submit` SHALL hacer `preventDefault` y filtrar; el evento `input` SHALL filtrar de inmediato y mostrar/ocultar el botón limpiar; el botón limpiar SHALL vaciar el input y restaurar el catálogo completo.
+RN-UX-01, RN-UX-02.
 
-#### `poblarSelectEditorial(selectEl: HTMLSelectElement): void`
-- Limpia options salvo placeholder
-- `Data.getEditoriales().forEach(e => { opt = document.createElement('option'); opt.value = e.id; opt.textContent = e.nombre; selectEl.appendChild(opt); })`
+#### Scenario: Submit sin recarga
+- **WHEN** el usuario envía el formulario de búsqueda
+- **THEN** la página no se recarga y el catálogo se re-renderiza con el filtro aplicado
 
-#### `poblarSelectGenero(selectEl: HTMLSelectElement): void`
-- Igual + option "Sin clasificar" value=""
+#### Scenario: Botón limpiar
+- **WHEN** el usuario hace clic en "Limpiar"
+- **THEN** el input queda vacío, se muestra el catálogo completo y el botón se oculta
 
-#### `poblarContenedorAutores(contenedorEl: HTMLElement): void`
-- Limpia contenedor
-- `Data.getAutores().forEach(a => { label = document.createElement('label'); checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.value = a.id; checkbox.name = 'autorIds'; label.appendChild(checkbox); label.appendChild(document.createTextNode(' ' + a.nombre)); contenedorEl.appendChild(label); })`
-- **DEC-08**: Checkboxes (mejor UX móvil que `<select multiple>`)
+### Requirement: Poblado de selectores y checkboxes
+El sistema SHALL poblar dinámicamente desde los datos locales: los selects de editorial y género (con opción "Sin clasificar" en género), el contenedor de autores como checkboxes (uno por autor) y los selects de cliente y libro para la vista de ventas.
+RN-LIB-07, DEC-08.
 
-#### `poblarSelectCliente(selectEl: HTMLSelectElement): void`
-- Desde `Data.getClientes()`
+#### Scenario: Select de editorial poblado
+- **WHEN** se ejecuta `poblarSelectEditorial`
+- **THEN** el select contiene una opción por cada editorial más su placeholder
 
-#### `poblarSelectLibro(selectEl: HTMLSelectElement): void`
-- Desde `Data.getLibros()` (para vista Ventas)
+#### Scenario: Contenedor de autores con checkboxes
+- **WHEN** se ejecuta `poblarContenedorAutores`
+- **THEN** se genera un checkbox `name="autorIds"` por cada autor de `autores[]`
 
-### 3.3 Reglas de Negocio Aplicadas
-- **RN-CAT-01**: Filtro insensible mayúsculas, parcial, trim
-- **RN-CAT-02**: Vacío → catálogo completo
-- **RN-CAT-03**: Sin resultados → mensaje claro
-- **RN-CAT-04**: Género null → "Sin clasificar"
-- **RN-CAT-05**: Catálogo desde `libros[]` en memoria
-- **RN-LIB-07**: Selectores generados desde datos
-- **RN-UX-01**: `preventDefault` en form búsqueda
-- **RN-UX-02**: Mensajes estado (vacío, sin resultados)
-- **RN-UX-03**: Accesibilidad (role="list", labels, aria-live en mensaje)
-- **RN-UX-05**: Separación HTML/CSS/JS
-- **DEC-05**: ISBN normalizado (no usado en catálogo pero en data)
-- **DEC-11**: Inserción segura `textContent`/`createTextNode`
-- **DEC-13**: Validaciones sync (no aplica aquí pero patrón consistente)
+#### Scenario: Select de cliente poblado
+- **WHEN** se ejecuta `poblarSelectCliente`
+- **THEN** el select contiene una opción por cada cliente de `clientes[]`
 
----
+### Requirement: Inserción segura de datos (anti-XSS)
+El sistema SHALL insertar todo dato de usuario mediante `textContent`/`createTextNode`/`appendChild`, y NUNCA mediante `innerHTML`.
+DEC-11.
 
-## 4. Integración con Bootstrap (`js/app.js`)
+#### Scenario: Texto con HTML no se interpreta
+- **WHEN** un título contiene marcado tipo `<img src=x onerror=...>`
+- **THEN** se muestra como texto literal, sin crear nodos HTML ni ejecutar scripts
 
-### 4.1 Flujo de Inicialización (Existente en C-02, extendido)
-```javascript
-import { mostrarVista } from './nav.js';
-import { Data } from './data.js';
-import { renderCatalogo, bindBusqueda, poblarSelectEditorial, poblarSelectGenero, poblarContenedorAutores, poblarSelectCliente, poblarSelectLibro } from './catalogo.js';
-
-document.addEventListener('DOMContentLoaded', () => {
-  Data.inicializar(); // Carga semilla o localStorage
-  
-  // Poblar selects que existen en HTML (C-01)
-  poblarSelectEditorial(document.getElementById('libro-editorial'));
-  poblarSelectGenero(document.getElementById('libro-genero'));
-  poblarContenedorAutores(document.getElementById('contenedor-autores'));
-  poblarSelectCliente(document.getElementById('venta-cliente'));
-  poblarSelectLibro(document.getElementById('venta-libro'));
-  
-  // Bind catálogo
-  bindBusqueda();
-  renderCatalogo(Data.getLibros());
-  
-  // Mostrar vista inicial
-  mostrarVista('catalogo');
-});
-```
-
----
-
-## 5. Interfaz con Changes Posteriores
-
-| Change | Qué consume de C-03 |
-|--------|---------------------|
-| **C-04** | `Data.getLibros()`, `Data.getClientes()`, `Data.crearLibro()`, `Data.crearCliente()`, `renderCatalogo()`, `poblarSelect*` (actualizar tras altas) |
-| **C-05** | `Data.getLibros()`, `Data.getClientes()`, `Data.getVentas()`, `Data.crearVenta()`, `poblarSelectLibro()`, `poblarSelectCliente()` |
-| **C-06** | `Data.guardarTodos()`, `Data.inicializar()` completados |
-
----
-
-## 6. Criterios de Aceptación (Resumen)
-
-| ID | Criterio | Regla |
-|----|----------|-------|
-| AC-01 | `Data.inicializar()` carga semilla si no hay flag | RN-PER-02 |
-| AC-02 | `Data.inicializar()` lee localStorage si hay flag | RN-PER-03 |
-| AC-03 | `Data.guardarTodos()` escribe 3 claves mínimas | RN-PER-01 |
-| AC-04 | `renderCatalogo()` muestra ≥6 libros en grid | HU-07 |
-| AC-05 | Búsqueda vacía → catálogo completo | RN-CAT-02 |
-| AC-06 | Búsqueda "borges" → "Ficciones" | RN-CAT-01 |
-| AC-07 | Búsqueda sin resultados → mensaje | RN-CAT-03 |
-| AC-08 | Libro sin género → "Sin clasificar" | RN-CAT-04 |
-| AC-09 | Catálogo solo desde `libros[]` memoria | RN-CAT-05 |
-| AC-10 | Selects poblados dinámicamente | RN-LIB-07 |
-| AC-11 | Sin `innerHTML` en renderizado | DEC-11 |
-| AC-12 | Vanilla only | RN-TEC-01, DEC-16 |
-
----
-
-## 7. Fuera de Alcance (Out of Scope)
-- Alta de libros/clientes (C-04)
-- Validaciones de formulario alta (C-04)
-- Persistencia completa localStorage (C-06)
-- Ventas e historial (C-05)
-- Debounce en filtro (opcional, PA-12)
-- Editar/eliminar registros (nunca, DEC-09)
+#### Scenario: Render sin innerHTML
+- **WHEN** se renderiza el catálogo o se pueblan selects
+- **THEN** el código no asigna `innerHTML` en ningún elemento

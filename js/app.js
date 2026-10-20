@@ -13,6 +13,8 @@ import {
   poblarSelectCliente,
   poblarSelectLibro
 } from './catalogo.js';
+import { bindFormLibro, renderListadoLibros } from './libros.js';
+import { bindFormCliente, renderListadoClientes } from './clientes.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Inicializar datos (semilla o localStorage)
@@ -28,8 +30,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. Vincular eventos de búsqueda
   bindBusqueda();
 
+  // 3.b Vincular formularios de alta (C-04)
+  bindFormLibro();
+  bindFormCliente();
+
   // 4. Render catálogo inicial
   renderCatalogo(Data.getLibros());
+
+  // 4.b Render inicial de listados (C-04)
+  renderListadoLibros();
+  renderListadoClientes();
 
   // 5. Mostrar vista inicial (Catálogo)
   mostrarVista('catalogo');
