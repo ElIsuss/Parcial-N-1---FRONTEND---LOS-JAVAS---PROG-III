@@ -8,14 +8,14 @@ See `_shared/skill-resolver.md` for the full resolution protocol.
 
 | Trigger | Skill | Path |
 |---------|-------|------|
-| /active-orchestrator:init, /active-orchestrator:kb, /active-orchestrator:rules, /active-orchestrator:discovery, /active-orchestrator:openspec, /active-orchestrator:devops, /active-orchestrator:find-skill | active-orchestrator | C:\Users\Usuario\.config\opencode\skills\active-orchestrator\SKILL.md |
-| crear/generar/actualizar AGENTS.md o CLAUDE.md, armar las reglas del proyecto, instrucciones para los agentes, generar claude.md | agent-instruction | C:\Users\Usuario\.config\opencode\skills\agent-instruction\SKILL.md |
-| investigar el mercado, pensar que construir antes de tener claridad, investigar competidores | discovery-research | C:\Users\Usuario\.config\opencode\skills\discovery-research\SKILL.md |
-| how do I do X, find a skill for X, is there a skill that can..., extender capacidades | find-skills | C:\Users\Usuario\.config\opencode\skills\find-skill\SKILL.md |
-| crear base de conocimiento, documentar proyecto, armar KB, generar KB desde docs | kb-creator | C:\Users\Usuario\.config\opencode\skills\kb-creator\SKILL.md |
-| crear CHANGES.md, armar roadmap, generar plan de implementación, armar CHANGES, armar roadmap, crear mapa de changes, generar plan de implementación, qué changes necesito, índice de changes | roadmap-generator | C:\Users\Usuario\.config\opencode\skills\roadmap-generator\SKILL.md |
-| crear skill, editar skill, optimizar skill, run evals, benchmark skill performance | skill-creator | C:\Users\Usuario\.config\opencode\skills\skill-creator\SKILL.md |
-| investigar competidor, scrapear URL, extraer problema/usuarios/features/pricing de una URL | web-scraper | C:\Users\Usuario\.config\opencode\skills\web-scraper\SKILL.md |
+| /active-orchestrator:init, /active-orchestrator:kb, /active-orchestrator:rules, /active-orchestrator:discovery, /active-orchestrator:openspec, /active-orchestrator:devops, /active-orchestrator:find-skill | active-orchestrator | ~/.config/opencode/skills/active-orchestrator/SKILL.md |
+| crear/generar/actualizar AGENTS.md o CLAUDE.md, armar las reglas del proyecto, instrucciones para los agentes, generar claude.md | agent-instruction | ~/.config/opencode/skills/agent-instruction/SKILL.md |
+| investigar el mercado, pensar que construir antes de tener claridad, investigar competidores | discovery-research | ~/.config/opencode/skills/discovery-research/SKILL.md |
+| how do I do X, find a skill for X, is there a skill that can..., extender capacidades | find-skills | ~/.config/opencode/skills/find-skill/SKILL.md |
+| crear base de conocimiento, documentar proyecto, armar KB, generar KB desde docs | kb-creator | ~/.config/opencode/skills/kb-creator/SKILL.md |
+| crear CHANGES.md, armar roadmap, generar plan de implementación, armar CHANGES, armar roadmap, crear mapa de changes, generar plan de implementación, qué changes necesito, índice de changes | roadmap-generator | ~/.config/opencode/skills/roadmap-generator/SKILL.md |
+| crear skill, editar skill, optimizar skill, run evals, benchmark skill performance | skill-creator | ~/.config/opencode/skills/skill-creator/SKILL.md |
+| investigar competidor, scrapear URL, extraer problema/usuarios/features/pricing de una URL | web-scraper | ~/.config/opencode/skills/web-scraper/SKILL.md |
 
 ## Compact Rules
 
