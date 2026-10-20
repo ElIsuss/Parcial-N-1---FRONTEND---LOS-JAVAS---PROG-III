@@ -1,0 +1,160 @@
+/* ========================================
+   TABLAS.CSS — Tablas, Modal, Totales
+   ======================================== */
+
+/* ---- Tabla Base ---- */
+.tabla-datos {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.tabla-datos th,
+.tabla-datos td {
+  padding: var(--spacing-sm) var(--spacing-md);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tabla-datos th {
+  background: var(--color-bg);
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.tabla-datos tbody tr:hover {
+  background: var(--color-bg);
+}
+
+.fila-vacia td {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: var(--spacing-xl);
+}
+
+/* ---- Modal Nativo ---- */
+.modal-detalle {
+  max-width: 90vw;
+  max-height: 90vh;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.modal-detalle::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  animation: fadeIn var(--transition);
+}
+
+.modal-header,
+.modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-footer {
+  border-top: 1px solid var(--color-border);
+  border-bottom: none;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.btn-cerrar-modal {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: var(--spacing-xs);
+}
+
+.btn-cerrar-modal:hover {
+  color: var(--color-text);
+}
+
+.modal-body {
+  padding: var(--spacing-md) var(--spacing-lg);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* ---- Meta Detalle ---- */
+.detalle-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--spacing-xs) var(--spacing-md);
+  font-size: 0.875rem;
+}
+
+.detalle-meta dt {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.detalle-meta dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+/* ---- Totales Venta ---- */
+.venta-totales {
+  text-align: right;
+  padding-top: var(--spacing-md);
+}
+
+.total-linea {
+  color: var(--color-primary);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+/* ---- Renglones de Venta ---- */
+.renglones-lista {
+  margin-bottom: var(--spacing-md);
+}
+
+.renglon-item {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: center;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.renglon-item .libro-info {
+  flex: 1;
+}
+
+.renglon-item .cantidad {
+  font-weight: 500;
+  min-width: 60px;
+}
+
+.renglon-item .precio {
+  color: var(--color-text-muted);
+  min-width: 100px;
+  text-align: right;
+}
+
+.renglon-item .subtotal {
+  font-weight: 600;
+  color: var(--color-primary);
+  min-width: 100px;
+  text-align: right;
+}
+
+.renglon-item .acciones {
+  display: flex;
+  gap: var(--spacing-xs);
+}

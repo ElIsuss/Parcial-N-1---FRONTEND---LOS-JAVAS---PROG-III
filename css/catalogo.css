@@ -1,0 +1,83 @@
+/* ========================================
+   CATALOGO.CSS — Grid, Toolbar, Tarjetas
+   ======================================== */
+
+/* ---- Toolbar Búsqueda ---- */
+.catalogo-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+@media (min-width: 768px) {
+  .catalogo-toolbar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.form-busqueda {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.form-busqueda .btn-buscar {
+  white-space: nowrap;
+}
+
+.form-busqueda .btn-limpiar {
+  white-space: nowrap;
+}
+
+/* ---- Grid Catálogo ---- */
+.catalogo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--spacing-md);
+}
+
+/* ---- Tarjeta Libro ---- */
+.libro-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--spacing-md);
+  box-shadow: var(--shadow);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.libro-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.libro-card h3 {
+  font-size: 1rem;
+  margin-bottom: var(--spacing-xs);
+  color: var(--color-text);
+}
+
+.libro-card .meta {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-xs);
+}
+
+.libro-card .precio {
+  font-weight: 600;
+  color: var(--color-primary);
+  font-size: 1.125rem;
+}
+
+/* ---- Mensaje Vacío ---- */
+.mensaje-vacio {
+  text-align: center;
+  padding: var(--spacing-xl);
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  grid-column: 1 / -1;
+}

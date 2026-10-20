@@ -98,7 +98,7 @@ Paso │ Agente A (Frontend Core)          │ Agente B (—) │ Agente C (—)
 ## FASE 1 — Presentación: CSS Mobile-First y Accesibilidad
 
 ### [C-02] `css-mobile-first-accesibilidad`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado
 - **Scope**: 
   - `css/base.css` — reset, variables CSS (paleta, tipografía, spacing, breakpoints), utilidades `.visually-hidden`, `.sr-only`, `focus-visible`
   - `css/layout.css` — grid header/nav/main, `.vista` / `.vista.activa`, responsive 320px/1280px, `.table-container { overflow-x: auto }`

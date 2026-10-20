@@ -1,0 +1,30 @@
+# OpenSpec / Orchestration state
+.atl/
+.active-orchestrator-state.json
+
+# opencode project config
+.opencode/
+
+# OpenSpec changes (CHANGES.md sí se versiona, pero no los archives/proposed)
+openspec/changes/proposed/
+openspec/changes/archive/
+
+# Dependencias (no aplica - vanilla only, pero por si acaso)
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Cache
+.cache/
+.eslintcache
