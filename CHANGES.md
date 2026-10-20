@@ -121,7 +121,7 @@ Paso │ Agente A (Frontend Core)          │ Agente B (—) │ Agente C (—)
 ## FASE 2 — Datos: Semilla, Catálogo y Filtro
 
 ### [C-03] `datos-semilla-catalogo-filtro`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado
 - **Scope**: 
   - `js/data.js` — Repository pattern simulado: `libros[]`, `editoriales[]`, `generos[]`, `autores[]`, `clientes[]`, `ventas[]`; `cargarSemilla()`, `guardarTodos()`, `inicializar()` con flag `libreria_inicializado`; getters `getLibros()`, `getEditoriales()`, `getGeneros()`, `getAutores()`, `getClientes()`, `getVentas()`
   - `js/utils.js` — `normalizeISBN()`, `formatPriceARS()`, `isValidEmail()`, `generateId()`, `debounce()`
