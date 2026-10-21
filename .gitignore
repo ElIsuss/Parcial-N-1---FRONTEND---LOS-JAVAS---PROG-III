@@ -5,9 +5,8 @@
 # opencode project config
 .opencode/
 
-# OpenSpec changes (CHANGES.md sí se versiona, pero no los archives/proposed)
+# OpenSpec changes (CHANGES.md y archives se versionan; proposed no)
 openspec/changes/proposed/
-openspec/changes/archive/
 
 # Dependencias (no aplica - vanilla only, pero por si acaso)
 node_modules/

@@ -1,5 +1,6 @@
 {
+  "$schema": "https://opencode.ai/config.json",
   "project": "Primer-Parcial-FRONTEND-PROGIII",
-  "instructions": "AGENTS.md",
+  "instructions": ["AGENTS.md"],
   "skills": ["kb-creator", "roadmap-generator", "agents-md-generator", "skill-registry"]
 }
