@@ -364,11 +364,102 @@ export const Data = {
 
   /**
    * Crea una venta con validaciones RN-VTA-01..10.
-   * @param {Object} venta - Datos de la venta
+   * @param {Object} venta - Datos de la venta: { clienteId, renglones: [{ libroId, cantidad }] }
    * @returns {{ok: boolean, errors: string[], venta?: Object}}
    */
   crearVenta(venta) {
-    // TODO: Implementar en C-05
-    return { ok: false, errors: ['No implementado (C-05)'] };
+    const errors = [];
+
+    const clienteId = venta?.clienteId ?? '';
+    const renglonesEntrada = Array.isArray(venta?.renglones) ? venta.renglones : [];
+
+    // RN-VTA-01: Cliente obligatorio y existente
+    if (!clienteId) {
+      errors.push('Debe seleccionar un cliente.');
+    } else if (!_findClienteById(clienteId)) {
+      errors.push('El cliente seleccionado no existe.');
+    }
+
+    // RN-VTA-02: Mínimo un renglón
+    if (renglonesEntrada.length === 0) {
+      errors.push('La venta debe tener al menos un renglón.');
+    }
+
+    // Procesar y validar renglones
+    const renglonesProcesados = [];
+    const librosVistos = new Set();
+
+    for (const [index, renglon] of renglonesEntrada.entries()) {
+      const libroId = renglon?.libroId ?? '';
+      const cantidad = Number(renglon?.cantidad);
+
+      // RN-VTA-03: Cantidad entera > 0
+      if (!Number.isInteger(cantidad) || cantidad <= 0) {
+        errors.push(`Renglón ${index + 1}: la cantidad debe ser un entero mayor a 0.`);
+        continue;
+      }
+
+      // RN-VTA-04: Libro existente
+      const libro = _findLibroById(libroId);
+      if (!libro) {
+        errors.push(`Renglón ${index + 1}: el libro seleccionado no existe.`);
+        continue;
+      }
+
+      // RN-VTA-05: Sin libros duplicados en la misma venta
+      if (librosVistos.has(libroId)) {
+        // Buscar el renglón existente y sumar cantidad
+        const renglonExistente = renglonesProcesados.find(r => r.libroId === libroId);
+        if (renglonExistente) {
+          renglonExistente.cantidad += cantidad;
+          renglonExistente.subtotal = Number((renglonExistente.cantidad * renglonExistente.precioUnitarioSnapshot).toFixed(2));
+        }
+        continue;
+      }
+
+      librosVistos.add(libroId);
+
+      // Snapshot del precio (RN-VTA-08, RN-VTA-09)
+      const precioUnitarioSnapshot = libro.precio;
+      const subtotal = Number((cantidad * precioUnitarioSnapshot).toFixed(2));
+
+      renglonesProcesados.push({
+        libroId,
+        titulo: libro.titulo,
+        isbn: libro.isbn,
+        cantidad,
+        precioUnitarioSnapshot,
+        subtotal
+      });
+    }
+
+    // Validación final: si hubo errores en renglones, no continuar
+    if (errors.length > 0) {
+      return { ok: false, errors };
+    }
+
+    // Recalcular total con 2 decimales (RN-VTA-07)
+    const total = Number(renglonesProcesados.reduce((sum, r) => sum + r.subtotal, 0).toFixed(2));
+
+    // DEC-08: ID estable con re-generación si colisiona
+    let id = generateId();
+    while (_findById(_state.ventas, id)) {
+      id = generateId();
+    }
+
+    // Fecha ISO (SUP-07)
+    const fecha = new Date().toISOString();
+
+    const ventaCreada = {
+      id,
+      fecha,
+      clienteId,
+      renglones: renglonesProcesados,
+      total
+    };
+
+    _state.ventas.push(ventaCreada);
+    this.guardarTodos();
+    return { ok: true, errors: [], venta: ventaCreada };
   }
 };

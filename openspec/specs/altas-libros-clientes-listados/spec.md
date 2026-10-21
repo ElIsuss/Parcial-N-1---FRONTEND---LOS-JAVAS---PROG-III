@@ -33,6 +33,10 @@ El sistema SHALL permitir registrar un libro nuevo mediante `#form-libro` con lo
 - **WHEN** no hay ningún checkbox de autor marcado (o un id no pertenece a `autores[]`)
 - **THEN** NO se crea el libro y se muestra el error de al menos un autor (RN-LIB-06)
 
+#### Scenario: Validación ISBN normalizada funciona tras recarga
+- **WHEN** se recarga la página tras dar de alta un libro con ISBN `978-111-222-333-4`, y se intenta dar de alta otro con `9781112223334`
+- **THEN** el duplicado se detecta y rechaza correctamente (el normalizado coincide con el persistido)
+
 ### Requirement: Alta de cliente con validaciones
 El sistema SHALL permitir registrar un cliente nuevo mediante `#form-cliente` con nombre completo y email, aplicando RN-CLI-01 a RN-CLI-03 de forma sincrónica, con `preventDefault` y sin recarga.
 
@@ -47,6 +51,10 @@ El sistema SHALL permitir registrar un cliente nuevo mediante `#form-cliente` co
 #### Scenario: Email duplicado case-insensitive se rechaza
 - **WHEN** el email coincide con uno existente solo después de `trim().toLowerCase()` (RN-CLI-03)
 - **THEN** NO se crea el cliente y se muestra el error de email ya registrado
+
+#### Scenario: Validación email case-insensitive funciona tras recarga
+- **WHEN** se recarga la página tras dar de alta cliente con email `Nuevo@Test.COM`, y se intenta dar de alta `nuevo@test.com`
+- **THEN** el duplicado se detecta y rechaza correctamente (normalización case-insensitive persistida)
 
 ### Requirement: Feedback de errores cerca del formulario
 Los errores de validación SHALL mostrarse en el contenedor de errores propio de cada formulario (`#errores-libro`, `#errores-cliente`), inmediatamente bajo el formulario, como lista de textos con `aria-live="polite"`; SHALL ser resultado de validación síncrona (`{ok, errors[]}`, DEC-13) y NO SHALL usar `alert()`/`confirm()` (DEC-14).
@@ -95,6 +103,10 @@ Tras un alta exitosa, el sistema SHALL actualizar sin recargar la página: el li
 #### Scenario: Persistencia tras recarga
 - **WHEN** se da de alta un registro y luego se recarga la página
 - **THEN** el registro dado de alta sigue presente (flag `libreria_inicializado` ya seteado por C-03, sin duplicar semilla)
+
+#### Scenario: Selectores de venta reflejan estado persistido tras recarga
+- **WHEN** se recarga la página tras altas previas
+- **THEN** `#venta-libro` y `#venta-cliente` muestran todos los libros y clientes (semilla + altas) desde localStorage
 
 ### Requirement: Seguridad de inserción y IDs estables
 El renderizado de listados y el llenado de selectores/checkboxes SHALL insertar datos de usuario únicamente vía `textContent`/`createTextNode`/`appendChild` (DEC-11, NUNCA `innerHTML`) y los nuevos registros SHALL recibir IDs generados con `generateId()` (`Date.now().toString(36)` + random), no índices de array (DEC-08, SUP-08). Los checkboxes de autores en `#contenedor-autores` SHALL generarse dinámicamente desde `autores[]` (RN-LIB-07).

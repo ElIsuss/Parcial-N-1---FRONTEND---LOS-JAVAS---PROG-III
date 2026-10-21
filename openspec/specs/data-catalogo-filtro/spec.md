@@ -22,6 +22,10 @@ RN-PER-02, RN-PER-03, DEC-03, DEC-12.
 - **WHEN** el parseo de localStorage falla o devuelve arrays vacíos
 - **THEN** se registra una advertencia por consola y se cae al fallback de semilla sin lanzar excepción
 
+#### Scenario: Recarga tras ventas confirmadas recupera historial intacto
+- **WHEN** hay ventas en `libreria_ventas` y se recarga la página
+- **THEN** `Data.getVentas()` retorna exactamente las ventas confirmadas (con sus `precioUnitarioSnapshot`, `subtotales`, `total` intactos), sin duplicados ni pérdida de datos
+
 ### Requirement: Datos semilla con IDs estables
 El sistema SHALL proveer datos semilla mínimos (2 editoriales, 2 géneros, 3 autores, 6 libros, 3 clientes, 0 ventas) con IDs pregenerados y estables (no derivados de índices ni de `Date.now()`).
 SUP-08.
@@ -45,6 +49,10 @@ RN-PER-01, RN-PER-04.
 #### Scenario: Error de escritura no aborta
 - **WHEN** `localStorage.setItem` falla (p. ej. cuota excedida)
 - **THEN** el error se registra por consola y la ejecución continúa (sin excepción propagada)
+
+#### Scenario: Guardado tras cada mutación exitosa
+- **WHEN** `Data.crearLibro`, `Data.crearCliente` o `Data.crearVenta` retornan `{ok: true}`
+- **THEN** `guardarTodos()` se invoca automáticamente y los cambios quedan en localStorage antes de retornar al caller
 
 ### Requirement: Getters de solo lectura
 El sistema SHALL exponer getters `getLibros`, `getEditoriales`, `getGeneros`, `getAutores`, `getClientes` y `getVentas` que retornan copias de los arrays internos, de modo que el consumidor no pueda mutar el estado del repository.

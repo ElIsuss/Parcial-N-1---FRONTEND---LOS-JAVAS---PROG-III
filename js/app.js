@@ -15,6 +15,8 @@ import {
 } from './catalogo.js';
 import { bindFormLibro, renderListadoLibros } from './libros.js';
 import { bindFormCliente, renderListadoClientes } from './clientes.js';
+import { bindFormVenta, inicializarVenta } from './ventas.js';
+import { renderHistorial, bindModalDetalle } from './historial.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Inicializar datos (semilla o localStorage)
@@ -34,6 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
   bindFormLibro();
   bindFormCliente();
 
+  // 3.c Vincular formulario de venta e historial (C-05)
+  bindFormVenta();
+  bindModalDetalle();
+
   // 4. Render catálogo inicial
   renderCatalogo(Data.getLibros());
 
@@ -50,6 +56,14 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const vistaId = link.dataset.vista;
       if (vistaId) {
+        // Render historial al navegar a esa vista
+        if (vistaId === 'historial') {
+          renderHistorial();
+        }
+        // Inicializar venta al navegar a esa vista
+        if (vistaId === 'ventas') {
+          inicializarVenta();
+        }
         mostrarVista(vistaId);
       }
     });

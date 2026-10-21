@@ -1,4 +1,4 @@
-# Tasks: C-04 — altas-libros-clientes-listados
+# Tareas: C-04 — altas-libros-clientes-listados
 
 > Sin framework de tests (vanilla, RN-TEC-01): la verificación es por consola del navegador (`file://`) y observación en la UI. Reglas duras aplicables en cada task: DEC-11 (nunca `innerHTML`), DEC-13 (sync `{ok, errors[]}`), DEC-08 (IDs estables), RN-TEC-01 (vanilla only).
 

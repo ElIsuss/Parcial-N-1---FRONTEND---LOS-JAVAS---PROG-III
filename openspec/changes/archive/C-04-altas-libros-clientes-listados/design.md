@@ -1,23 +1,23 @@
-# Design: C-04 — altas-libros-clientes-listados
+# Diseño: C-04 — altas-libros-clientes-listados
 
-## Context
+## Contexto
 
-C-03 dejó la capa de datos lista: `Data` con getters, helpers exportados (`_isbnExists`, `_emailExists`, `_find*`), `guardarTodos()` persistente y `crearLibro`/`crearCliente` como stubs que retornan `{ok:false}`. `catalogo.js` ya exporta `renderCatalogo`, `poblarSelect*` y `poblarContenedorAutores`. El HTML (C-01) ya tiene `#form-libro`, `#form-cliente`, `#errores-libro`, `#errores-cliente`, `#tabla-libros`, `#tabla-clientes`, `.fila-vacia` y `#contenedor-autores`; el CSS (C-02) ya estiliza `.errores-formulario`, `.tabla-datos`, `.fila-vacia`. Ver proposal.md — Why.
+C-03 dejó la capa de datos lista: `Data` con getters, helpers exportados (`_isbnExists`, `_emailExists`, `_find*`), `guardarTodos()` persistente y `crearLibro`/`crearCliente` como stubs que retornan `{ok:false}`. `catalogo.js` ya exporta `renderCatalogo`, `poblarSelect*` y `poblarContenedorAutores`. El HTML (C-01) ya tiene `#form-libro`, `#form-cliente`, `#errores-libro`, `#errores-cliente`, `#tabla-libros`, `#tabla-clientes`, `.fila-vacia` y `#contenedor-autores`; el CSS (C-02) ya estiliza `.errores-formulario`, `.tabla-datos`, `.fila-vacia`. Ver proposal.md — Por qué.
 
-## Goals / Non-Goals
+## Objetivos / No objetivos
 
-**Goals:**
+**Objetivos:**
 - Convertir los stubs `crearLibro`/`crearCliente` en mutaciones completas (validación + push + save)
 - Comportamiento de alta y listado en módulos JS nuevos (`libros.js`, `clientes.js`)
 - Coordinación post-alta: listados + catálogo + selectores de venta actualizados sin recarga
 
-**Non-Goals:**
-- Editar/eliminar registros (out of scope del proyecto, DEC-09)
+**No objetivos:**
+- Editar/eliminar registros (fuera de alcance del proyecto, DEC-09)
 - Alta de editoriales/géneros/autores (CRUD de apoyo no requerido)
 - Persistencia diferida/completa y flag (ya en data.js; verificación en C-06)
 - Ventas e historial (C-05)
 
-## Decisions
+## Decisiones
 
 1. **Validaciones centralizadas en `Data.crearLibro`/`Data.crearCliente`, no en los formularios.**
    El formulario solo serializa y llama a la mutación; la mutación retorna `{ok, errors[]}` (DEC-13).
@@ -42,7 +42,7 @@ C-03 dejó la capa de datos lista: `Data` con getters, helpers exportados (`_isb
 
 7. **Checkbox de autores: reutilizar `poblarContenedorAutores` de C-03.** No se duplica código; solo se verifica que esté poblado al iniciar. En `crearLibro`, `autorIds` se leen de los checkboxes `name="autorIds" :checked`.
 
-## Risks / Trade-offs
+## Riesgos / Compensaciones
 
 - [Doble submit rápido crea duplicados de ISBN/email] → `_isbnExists`/`_emailExists` corren sobre `libros[]` en memoria actualizado sincrónicamente; el segundo submit falla por unicidad.
 - [Catálogo con filtro activo: re-render muestra todos] → se re-renderiza con `filtrarLibros(input.value)` si `#input-busqueda` tiene término, para no perder el filtro del usuario.
@@ -50,10 +50,10 @@ C-03 dejó la capa de datos lista: `Data` con getters, helpers exportados (`_isb
 - [Cambiar `data.js` rompe C-03] → las firmas de stubs se conservan exactas (`{ok, errors[], libro?/cliente?}`); los getters y `guardarTodos` no se tocan.
 - [Fila vacía visible de más] → `render*` alterna `hidden` de `.fila-vacia` según `length` en cada render.
 
-## Migration Plan
+## Plan de migración
 
 Sin migración de datos: cambios solo en JS (módulos ES6 cargados por `app.js`). Rollback = revert de los commits del change; el HTML/CSS no cambia.
 
-## Open Questions
+## Preguntas abiertas
 
 Ninguna que afecte specs, enfoque o desglose de tareas.
