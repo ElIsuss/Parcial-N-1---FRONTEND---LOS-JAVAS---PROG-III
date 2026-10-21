@@ -162,7 +162,7 @@ Paso │ Agente A (Frontend Core)          │ Agente B (—) │ Agente C (—)
 ## FASE 4 — Transacciones: Venta Simulada e Historial con Snapshot
 
 ### [C-05] `venta-simulada-historial-snapshot`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado
 - **Scope**: 
   - `js/ventas.js` — Composer venta: `bindFormVenta()`, selector cliente obligatorio, agregar renglón (select libro + input cantidad), validar RN-VTA-03/04, anti-duplicado RN-VTA-05 (modifica cantidad o informa), recalcular subtotales RN-VTA-06 + total RN-VTA-07, habilitar/deshabilitar `#btn-confirmar-venta`
   - Confirmar: validación final RN-VTA-10, crear objeto Venta con `id`, `fecha` (ISO), `clienteId`, `renglones[]` con `precioUnitarioSnapshot` (copia `libro.precio` actual), `titulo`, `isbn`, `total`; guardar en `ventas[]` + localStorage; limpiar formulario + mensaje éxito RN-VTA-12

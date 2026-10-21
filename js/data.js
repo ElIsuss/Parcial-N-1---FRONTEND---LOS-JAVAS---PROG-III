@@ -211,8 +211,10 @@ export const Data = {
       localStorage.setItem('libreria_editoriales', JSON.stringify(_state.editoriales));
       localStorage.setItem('libreria_generos', JSON.stringify(_state.generos));
       localStorage.setItem('libreria_autores', JSON.stringify(_state.autores));
+      return true;
     } catch (e) {
       console.error('Error guardando en localStorage:', e);
+      return false;
     }
   },
 
@@ -364,11 +366,88 @@ export const Data = {
 
   /**
    * Crea una venta con validaciones RN-VTA-01..10.
-   * @param {Object} venta - Datos de la venta
+   * @param {Object} venta - Datos de la venta { clienteId, renglones[] }
    * @returns {{ok: boolean, errors: string[], venta?: Object}}
    */
   crearVenta(venta) {
-    // TODO: Implementar en C-05
-    return { ok: false, errors: ['No implementado (C-05)'] };
+    const errors = [];
+
+    // RN-VTA-01: Cliente obligatorio
+    const clienteId = venta?.clienteId ?? '';
+    if (!clienteId || !this._findClienteById(clienteId)) {
+      errors.push('Seleccione un cliente válido');
+    }
+
+    // RN-VTA-02: Mínimo un renglón
+    const renglonesEntrada = Array.isArray(venta?.renglones) ? venta.renglones : [];
+    if (renglonesEntrada.length === 0) {
+      errors.push('Agregue al menos un renglón');
+    }
+
+    // Validar cada renglón
+    const renglonesConSnapshot = [];
+    renglonesEntrada.forEach((r, idx) => {
+      // RN-VTA-03: Cantidad entera > 0
+      if (!Number.isInteger(r.cantidad) || r.cantidad <= 0) {
+        errors.push(`Renglón ${idx + 1}: cantidad debe ser entero mayor a 0`);
+      }
+      // RN-VTA-04: Libro existente
+      const libro = this._findLibroById(r.libroId);
+      if (!libro) {
+        errors.push(`Renglón ${idx + 1}: libro no encontrado`);
+      } else if (!Number.isFinite(libro.precio) || libro.precio <= 0) {
+        errors.push(`Renglón ${idx + 1}: precio de libro inválido`);
+      } else {
+        // Snapshot de precio (RN-VTA-08) + datos descriptivos (RN-VTA-09)
+        const precioSnapshot = Number(libro.precio.toFixed(2));
+        const subtotal = Number((r.cantidad * precioSnapshot).toFixed(2));
+        renglonesConSnapshot.push({
+          libroId: r.libroId,
+          cantidad: r.cantidad,
+          precioUnitarioSnapshot: precioSnapshot,
+          subtotal,
+          titulo: libro.titulo,
+          isbn: libro.isbn,
+        });
+      }
+    });
+
+    // RN-VTA-05: Sin libros duplicados en la misma venta (por libroId)
+    const idsVistos = new Set();
+    renglonesEntrada.forEach((r, idx) => {
+      if (idsVistos.has(r.libroId)) {
+        errors.push(`Renglón ${idx + 1}: libro duplicado (debe sumarse cantidad)`);
+      } else {
+        idsVistos.add(r.libroId);
+      }
+    });
+
+    if (errors.length > 0) {
+      return { ok: false, errors };
+    }
+
+    // RN-VTA-06/07: Total = suma subtotales (2 decimales)
+    const total = Number(renglonesConSnapshot.reduce((acc, r) => acc + r.subtotal, 0).toFixed(2));
+
+    // Construir objeto Venta completo
+    let id = generateId();
+    while (_state.ventas.some(v => v.id === id)) {
+      id = generateId();
+    }
+
+    const ventaCreada = {
+      id,
+      fecha: new Date().toISOString(),
+      clienteId,
+      renglones: renglonesConSnapshot,
+      total,
+    };
+
+    _state.ventas.push(ventaCreada);
+    if (!this.guardarTodos()) {
+      _state.ventas.pop();
+      return { ok: false, errors: ['No se pudo guardar la venta en el almacenamiento local'] };
+    }
+    return { ok: true, errors: [], venta: ventaCreada };
   }
 };

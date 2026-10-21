@@ -15,6 +15,8 @@ import {
 } from './catalogo.js';
 import { bindFormLibro, renderListadoLibros } from './libros.js';
 import { bindFormCliente, renderListadoClientes } from './clientes.js';
+import { bindFormVenta } from './ventas.js';
+import { bindHistorial, renderHistorial } from './historial.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Inicializar datos (semilla o localStorage)
@@ -33,6 +35,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3.b Vincular formularios de alta (C-04)
   bindFormLibro();
   bindFormCliente();
+
+  // 3.c Inicializar Ventas e Historial (C-05)
+  bindHistorial();
+  bindFormVenta();
+  renderHistorial();
 
   // 4. Render catálogo inicial
   renderCatalogo(Data.getLibros());

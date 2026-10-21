@@ -100,6 +100,8 @@ export function bindFormCliente() {
     renderListadoClientes();
 
     // RN-CLI-05: refrescar selector de venta sin recargar
-    poblarSelectCliente(document.getElementById('venta-cliente'));
+    const selectVenta = document.getElementById('venta-cliente');
+    poblarSelectCliente(selectVenta);
+    selectVenta.dispatchEvent(new Event('change', { bubbles: true }));
   });
 }
