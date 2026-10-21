@@ -4,8 +4,10 @@ Trabajo Práctico de Frontend — Universidad Tecnológica Nacional / Universida
 
 ## Autores
 
-- [Nombre Apellido] — [Legajo]
-- [Nombre Apellido] — [Legajo]
+-Isaias Morinigo  -- 54011
+-Giovanna Suarez  -- 51650
+-Gaston Puente    -- 52735
+-Juan Martinez    -- 53882
 
 ---
 
