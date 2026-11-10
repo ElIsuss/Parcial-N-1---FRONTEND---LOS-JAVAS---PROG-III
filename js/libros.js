@@ -1,10 +1,13 @@
 // ========================================
-// LIBROS.JS — Alta y Listado de Libros
+// LIBROS.JS — Alta y Listado de Libros (Conectado a LIBRERIA-API)
 // ========================================
 
 import { Data } from './data.js';
 import { formatPriceARS } from './utils.js';
-import { renderCatalogo, filtrarLibros, poblarSelectLibro } from './catalogo.js';
+import { actualizarCatalogoRemoto, poblarSelectLibro } from './catalogo.js';
+
+// Estado local de autores verificados para el formulario de alta de libro
+let _autoresSeleccionados = [];
 
 // ========================================
 // LISTADO DE LIBROS
@@ -12,7 +15,7 @@ import { renderCatalogo, filtrarLibros, poblarSelectLibro } from './catalogo.js'
 
 /**
  * Renderiza el listado de libros registrados en #tabla-libros.
- * Inserción segura (textContent) — NUNCA innerHTML. DEC-11
+ * Inserción segura (textContent) — NUNCA innerHTML.
  */
 export function renderListadoLibros() {
   const tbody = document.querySelector('#tabla-libros tbody');
@@ -36,21 +39,22 @@ export function renderListadoLibros() {
   }
 
   libros.forEach(libro => {
-    const editorial = libro.editorialId ? Data._findEditorialById(libro.editorialId) : null;
-    const genero = libro.generoId ? Data._findGeneroById(libro.generoId) : null;
-    const autores = (libro.autorIds || [])
-      .map(id => Data._findAutorById(id)?.nombre)
-      .filter(Boolean);
+    const editorialNombre = libro.editorial?.nombre
+      || (libro.editorialId ? Data._findEditorialById(libro.editorialId)?.nombre : null)
+      || '—';
+    const generoNombre = libro.genero?.nombre
+      || (libro.generoId ? Data._findGeneroById(libro.generoId)?.nombre : null)
+      || 'Sin clasificar';
 
     const tr = document.createElement('tr');
 
     const celdas = [
-      libro.id,
+      String(libro.id),
       libro.titulo,
       libro.isbn,
-      editorial ? editorial.nombre : '—',
-      genero ? genero.nombre : 'Sin clasificar',
-      autores.length ? autores.join(', ') : '—',
+      editorialNombre,
+      generoNombre,
+      String(libro.stock ?? 0),
       formatPriceARS(libro.precio)
     ];
 
@@ -65,16 +69,60 @@ export function renderListadoLibros() {
 }
 
 // ========================================
+// GESTIÓN DE AUTORES VERIFICADOS POR ID
+// ========================================
+
+function _renderAutoresSeleccionados() {
+  const contenedor = document.getElementById('contenedor-autores');
+  if (!contenedor) return;
+
+  while (contenedor.firstChild) {
+    contenedor.removeChild(contenedor.firstChild);
+  }
+
+  if (_autoresSeleccionados.length === 0) {
+    const hint = document.createElement('p');
+    hint.className = 'meta';
+    hint.textContent = 'Ningún autor agregado todavía. Ingrese un ID de autor y presione "Verificar y agregar".';
+    contenedor.appendChild(hint);
+    return;
+  }
+
+  const ul = document.createElement('ul');
+  ul.className = 'lista-autores-seleccionados';
+
+  _autoresSeleccionados.forEach((item, index) => {
+    item.orden = index + 1;
+    const li = document.createElement('li');
+    li.className = 'autor-item';
+
+    const span = document.createElement('span');
+    span.textContent = `${item.orden}. #${item.autor_id} — ${item.nombre} (${item.nacionalidad}) — Rol: ${item.rol}`;
+    li.appendChild(span);
+
+    const btnQuitar = document.createElement('button');
+    btnQuitar.type = 'button';
+    btnQuitar.className = 'btn btn-secundario btn-quitar-autor';
+    btnQuitar.textContent = 'Quitar';
+    btnQuitar.addEventListener('click', () => {
+      _autoresSeleccionados.splice(index, 1);
+      _renderAutoresSeleccionados();
+    });
+    li.appendChild(btnQuitar);
+
+    ul.appendChild(li);
+  });
+
+  contenedor.appendChild(ul);
+}
+
+// ========================================
 // FORMULARIO DE ALTA
 // ========================================
 
-/**
- * Muestra la lista de errores de validación cerca del formulario.
- * DEC-13, DEC-14, RN-LIB-09
- * @param {HTMLElement} contenedor
- * @param {string[]} errors
- */
 function _mostrarErrores(contenedor, errors) {
+  const exitoEl = document.getElementById('exito-libro');
+  if (exitoEl) exitoEl.hidden = true;
   if (!contenedor) return;
   while (contenedor.firstChild) {
     contenedor.removeChild(contenedor.firstChild);
@@ -89,29 +137,93 @@ function _mostrarErrores(contenedor, errors) {
   contenedor.hidden = false;
 }
 
+function _mostrarExitoLibro(libro) {
+  const exitoEl = document.getElementById('exito-libro');
+  const contenedorErrores = document.getElementById('errores-libro');
+  if (contenedorErrores) contenedorErrores.hidden = true;
+  if (!exitoEl) return;
+  exitoEl.textContent = `Libro #${libro.id} "${libro.titulo}" creado correctamente (201 Created).`;
+  exitoEl.hidden = false;
+}
+
 /**
- * Vincula el formulario de alta de libro (#form-libro).
- * RN-LIB-01..10, RN-UX-01, RN-UX-02
+ * Vincula el formulario de alta de libro (#form-libro) y el verificador de autores por ID.
  */
 export function bindFormLibro() {
   const form = document.getElementById('form-libro');
   const contenedorErrores = document.getElementById('errores-libro');
+  const inputAutorId = document.getElementById('autor-buscar-id');
+  const selectAutorRol = document.getElementById('autor-rol');
+  const btnVerificarAutor = document.getElementById('btn-verificar-autor');
+
   if (!form) return;
 
-  form.addEventListener('submit', (e) => {
+  _renderAutoresSeleccionados();
+
+  if (btnVerificarAutor && inputAutorId && selectAutorRol) {
+    btnVerificarAutor.addEventListener('click', async () => {
+      const idVal = inputAutorId.value;
+      const rolVal = selectAutorRol.value || 'autor';
+
+      if (!idVal) {
+        _mostrarErrores(contenedorErrores, ['Ingrese un ID de autor para verificar.']);
+        return;
+      }
+
+      if (_autoresSeleccionados.some(a => Number(a.autor_id) === Number(idVal))) {
+        _mostrarErrores(contenedorErrores, [`El autor con ID #${idVal} ya fue agregado al libro.`]);
+        return;
+      }
+
+      btnVerificarAutor.disabled = true;
+      const res = await Data.fetchAutorPorId(idVal);
+      btnVerificarAutor.disabled = false;
+
+      if (!res.ok) {
+        _mostrarErrores(contenedorErrores, res.errors);
+        return;
+      }
+
+      if (contenedorErrores) contenedorErrores.hidden = true;
+
+      _autoresSeleccionados.push({
+        autor_id: res.autor.id,
+        nombre: res.autor.nombre,
+        nacionalidad: res.autor.nacionalidad,
+        rol: rolVal,
+        orden: _autoresSeleccionados.length + 1
+      });
+
+      inputAutorId.value = '';
+      _renderAutoresSeleccionados();
+    });
+  }
+
+  form.addEventListener('reset', () => {
+    setTimeout(() => {
+      _autoresSeleccionados = [];
+      _renderAutoresSeleccionados();
+      if (contenedorErrores) contenedorErrores.hidden = true;
+    }, 0);
+  });
+
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const autorIds = Array.from(form.querySelectorAll('input[name="autorIds"]:checked'))
-      .map(cb => cb.value);
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
 
-    const resultado = Data.crearLibro({
+    const resultado = await Data.crearLibro({
       titulo: form.elements['titulo']?.value,
       isbn: form.elements['isbn']?.value,
       precio: form.elements['precio']?.value,
+      stock: form.elements['stock']?.value,
       editorialId: form.elements['editorialId']?.value,
       generoId: form.elements['generoId']?.value,
-      autorIds
+      autores: _autoresSeleccionados
     });
+
+    if (submitBtn) submitBtn.disabled = false;
 
     if (!resultado.ok) {
       _mostrarErrores(contenedorErrores, resultado.errors);
@@ -120,12 +232,12 @@ export function bindFormLibro() {
 
     if (contenedorErrores) contenedorErrores.hidden = true;
     form.reset();
+    _autoresSeleccionados = [];
+    _renderAutoresSeleccionados();
+    _mostrarExitoLibro(resultado.libro);
 
+    await actualizarCatalogoRemoto();
     renderListadoLibros();
-
-    // RN-LIB-07, RN-LIB-10: refrescar dependencias sin recargar
-    const inputBusqueda = document.getElementById('input-busqueda');
-    renderCatalogo(filtrarLibros(inputBusqueda ? inputBusqueda.value : ''));
     poblarSelectLibro(document.getElementById('venta-libro'));
   });
 }

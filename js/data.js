@@ -1,465 +1,570 @@
 // ========================================
-// DATA.JS — Repository Pattern + localStorage + Semilla
+// DATA.JS — Cliente HTTP + Capa de Datos API (FastAPI)
 // ========================================
 
-import { normalizeISBN, generateId, isValidEmail } from './utils.js';
+import { normalizeISBN, isValidEmail } from './utils.js';
 
 // ========================================
-// ESTADO PRIVADO (no exportado directamente)
+// CONFIGURACIÓN DE URL BASE
+// ========================================
+/**
+ * Determina la URL base de la API:
+ * - Si window.API_BASE_URL está definida, la usa.
+ * - Si se sirve desde archivo local (file:) o un puerto de dev distinto (5500, 5173, 3000),
+ *   usa http://localhost:8000 por defecto (salvo que /api responda detrás de Nginx).
+ * - En contenedores detrás de Nginx, usa '/api'.
+ */
+function _resolveBaseUrl() {
+  if (typeof window !== 'undefined' && window.API_BASE_URL) {
+    return String(window.API_BASE_URL).replace(/\/+$/, '');
+  }
+  if (typeof window !== 'undefined' && window.location) {
+    const { protocol, hostname, port } = window.location;
+    if (protocol === 'file:') {
+      return 'http://localhost:8000';
+    }
+    if ((hostname === 'localhost' || hostname === '127.0.0.1') && port && port !== '80' && port !== '8080') {
+      return 'http://localhost:8000';
+    }
+  }
+  return '/api';
+}
+
+const API_BASE_URL = _resolveBaseUrl();
+
+// ========================================
+// CACHÉ EN MEMORIA DE SESIÓN
 // ========================================
 const _state = {
   libros: [],
   editoriales: [],
   generos: [],
-  autores: [],
-  clientes: [],
+  autoresCache: new Map(), // id (number) -> AutorRead
+  clientes: [],            // clientes dados de alta o buscados por ID en la sesión
   ventas: [],
-  _inicializado: false
+  _inicializado: false,
+  _ultimoErrorRed: null
 };
 
 // ========================================
-// DATOS SEMILLA (IDs estables pregenerados)
+// CLIENTE HTTP CENTRALIZADO
 // ========================================
-const SEED = {
-  editoriales: [
-    { id: 'ed1', nombre: 'Editorial Sudamericana' },
-    { id: 'ed2', nombre: 'Penguin Random House' }
-  ],
-  generos: [
-    { id: 'gen1', nombre: 'Ficción' },
-    { id: 'gen2', nombre: 'No Ficción' }
-  ],
-  autores: [
-    { id: 'aut1', nombre: 'Jorge Luis Borges' },
-    { id: 'aut2', nombre: 'Julio Cortázar' },
-    { id: 'aut3', nombre: 'Adolfo Bioy Casares' }
-  ],
-  libros: [
-    {
-      id: 'lib1',
-      titulo: 'Ficciones',
-      isbn: '978-987-1234-56-7',
-      precio: 1500.00,
-      editorialId: 'ed1',
-      generoId: 'gen1',
-      autorIds: ['aut1', 'aut2']
-    },
-    {
-      id: 'lib2',
-      titulo: 'Rayuela',
-      isbn: '978-950-07-1234-5',
-      precio: 2200.00,
-      editorialId: 'ed2',
-      generoId: 'gen1',
-      autorIds: ['aut2']
-    },
-    {
-      id: 'lib3',
-      titulo: 'El Aleph',
-      isbn: '978-987-6543-21-0',
-      precio: 1800.00,
-      editorialId: 'ed1',
-      generoId: 'gen1',
-      autorIds: ['aut1']
-    },
-    {
-      id: 'lib4',
-      titulo: 'Sapiens: De animales a dioses',
-      isbn: '978-84-397-3456-7',
-      precio: 3500.00,
-      editorialId: 'ed2',
-      generoId: 'gen2',
-      autorIds: ['aut3']
-    },
-    {
-      id: 'lib5',
-      titulo: 'Historia de la lectura',
-      isbn: '978-950-12-3456-7',
-      precio: 2800.00,
-      editorialId: 'ed1',
-      generoId: 'gen2',
-      autorIds: ['aut1', 'aut3']
-    },
-    {
-      id: 'lib6',
-      titulo: 'Cuentos completos',
-      isbn: '978-987-1111-22-2',
-      precio: 1900.00,
-      editorialId: 'ed2',
-      generoId: null,
-      autorIds: ['aut2', 'aut3']
+
+/**
+ * Extrae una lista de mensajes legibles desde la respuesta de error de FastAPI.
+ * @param {number} status
+ * @param {any} body
+ * @returns {string[]}
+ */
+function _parsearErroresFastAPI(status, body) {
+  if (body && typeof body === 'object') {
+    if (typeof body.detail === 'string') {
+      return [body.detail];
     }
-  ],
-  clientes: [
-    { id: 'cli1', nombreCompleto: 'Juan Pérez', email: 'juan@email.com' },
-    { id: 'cli2', nombreCompleto: 'María García', email: 'maria@email.com' },
-    { id: 'cli3', nombreCompleto: 'Carlos López', email: 'carlos@email.com' }
-  ],
-  ventas: []
-};
-
-// ========================================
-// HELPERS INTERNOS (prefijo _)
-// ========================================
-function _deepClone(obj) {
-  return JSON.parse(JSON.stringify(obj));
+    if (Array.isArray(body.detail)) {
+      return body.detail.map(err => {
+        const campo = Array.isArray(err.loc) ? err.loc.slice(1).join('.') : '';
+        const msg = err.msg || 'Valor inválido';
+        return campo ? `Campo "${campo}": ${msg}` : msg;
+      });
+    }
+  }
+  if (status === 404) return ['El recurso solicitado no fue encontrado (404).'];
+  if (status === 409) return ['Conflicto de negocio con el estado actual (409).'];
+  if (status === 422) return ['Los datos enviados no superaron la validación (422).'];
+  return [`Error del servidor (HTTP ${status}).`];
 }
 
-function _findById(array, id) {
-  return array.find(item => item.id === id);
+/**
+ * Ejecuta una petición HTTP hacia LIBRERIA-API.
+ * @param {string} path - Ruta relativa (ej. '/libros/' o '/clientes/1')
+ * @param {RequestInit} options
+ * @returns {Promise<{ok: boolean, status: number, data?: any, errors: string[]}>}
+ */
+async function _request(path, options = {}) {
+  const url = `${API_BASE_URL}${path}`;
+  const headers = {
+    Accept: 'application/json',
+    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    ...(options.headers || {})
+  };
+
+  try {
+    const response = await fetch(url, { ...options, headers });
+    let payload = null;
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      payload = await response.json();
+    } else {
+      const text = await response.text();
+      payload = text ? { detail: text } : null;
+    }
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        errors: _parsearErroresFastAPI(response.status, payload)
+      };
+    }
+
+    _state._ultimoErrorRed = null;
+    return {
+      ok: true,
+      status: response.status,
+      data: payload,
+      errors: []
+    };
+  } catch (err) {
+    const msg = 'No se pudo conectar con la API del backend. Verifique que el servidor esté en ejecución.';
+    _state._ultimoErrorRed = msg;
+    return {
+      ok: false,
+      status: 0,
+      errors: [msg]
+    };
+  }
 }
 
-function _findLibroById(id) {
-  return _findById(_state.libros, id);
+/**
+ * Registra o actualiza un cliente en la memoria de sesión (evita duplicados por id).
+ * @param {Object} clienteApi - { id, nombre, email, perfil? }
+ * @returns {Object}
+ */
+function _registrarClienteEnSesion(clienteApi) {
+  if (!clienteApi || clienteApi.id == null) return null;
+  const normalizado = {
+    id: Number(clienteApi.id),
+    nombre: clienteApi.nombre,
+    nombreCompleto: clienteApi.nombre, // alias compatible con vistas previas
+    email: clienteApi.email,
+    perfil: clienteApi.perfil || null
+  };
+  const idx = _state.clientes.findIndex(c => Number(c.id) === normalizado.id);
+  if (idx >= 0) {
+    _state.clientes[idx] = normalizado;
+  } else {
+    _state.clientes.push(normalizado);
+  }
+  return normalizado;
 }
 
-function _findClienteById(id) {
-  return _findById(_state.clientes, id);
+/**
+ * Normaliza un libro recibido desde la API (LibroLista o LibroDetalle).
+ * @param {Object} libroApi
+ * @returns {Object}
+ */
+function _normalizarLibro(libroApi) {
+  return {
+    id: Number(libroApi.id),
+    isbn: libroApi.isbn,
+    titulo: libroApi.titulo,
+    precio: Number(libroApi.precio),
+    stock: Number(libroApi.stock ?? 0),
+    editorial: libroApi.editorial || null,
+    genero: libroApi.genero || null,
+    editorialId: libroApi.editorial ? Number(libroApi.editorial.id) : null,
+    generoId: libroApi.genero ? Number(libroApi.genero.id) : null,
+    autores: Array.isArray(libroApi.autores) ? libroApi.autores : null
+  };
 }
 
-function _findEditorialById(id) {
-  return _findById(_state.editoriales, id);
-}
-
-function _findGeneroById(id) {
-  return _findById(_state.generos, id);
-}
-
-function _findAutorById(id) {
-  return _findById(_state.autores, id);
-}
-
-function _isbnExists(normalizedIsbn, excludeId = null) {
-  return _state.libros.some(libro => 
-    libro.id !== excludeId && normalizeISBN(libro.isbn) === normalizedIsbn
-  );
-}
-
-function _emailExists(normalizedEmail, excludeId = null) {
-  return _state.clientes.some(cliente => 
-    cliente.id !== excludeId && cliente.email.trim().toLowerCase() === normalizedEmail
-  );
+/**
+ * Normaliza una venta recibida desde la API (VentaRead).
+ * @param {Object} ventaApi
+ * @returns {Object}
+ */
+function _normalizarVenta(ventaApi) {
+  if (ventaApi?.cliente) {
+    _registrarClienteEnSesion(ventaApi.cliente);
+  }
+  return {
+    id: Number(ventaApi.id),
+    fecha: ventaApi.fecha,
+    total: Number(ventaApi.total),
+    cliente: ventaApi.cliente
+      ? {
+          id: Number(ventaApi.cliente.id),
+          nombre: ventaApi.cliente.nombre,
+          email: ventaApi.cliente.email
+        }
+      : null,
+    clienteId: ventaApi.cliente ? Number(ventaApi.cliente.id) : null,
+    renglones: Array.isArray(ventaApi.renglones)
+      ? ventaApi.renglones.map(r => ({
+          libro_id: Number(r.libro_id),
+          libroId: Number(r.libro_id),
+          titulo: r.titulo,
+          cantidad: Number(r.cantidad),
+          precio_unitario: Number(r.precio_unitario),
+          precioUnitarioSnapshot: Number(r.precio_unitario),
+          subtotal: Number(r.subtotal)
+        }))
+      : []
+  };
 }
 
 // ========================================
 // API PÚBLICA EXPORTADA
 // ========================================
 export const Data = {
+  getBaseUrl() {
+    return API_BASE_URL;
+  },
+
+  getUltimoErrorRed() {
+    return _state._ultimoErrorRed;
+  },
+
   /**
-   * Inicializa el repository: carga semilla si es primer inicio, o recupera de localStorage.
-   * RN-PER-02, RN-PER-03, DEC-12 — Sync, sin Promises
+   * Inicializa la aplicación consultando editoriales, géneros, catálogo inicial y ventas.
+   * @returns {Promise<{ok: boolean, errors: string[]}>}
    */
-  inicializar() {
-    if (_state._inicializado) return;
+  async inicializar() {
+    const [resEd, resGen, resLib, resVen] = await Promise.all([
+      _request('/editoriales/?limit=100&offset=0'),
+      _request('/generos/?limit=100&offset=0'),
+      _request('/libros/?limit=100&offset=0'),
+      _request('/ventas/?limit=100&offset=0')
+    ]);
 
-    const yaInicializado = localStorage.getItem('libreria_inicializado');
-
-    if (!yaInicializado) {
-      // Primer inicio: cargar semilla y persistir
-      this.cargarSemilla();
-      this.guardarTodos();
-      localStorage.setItem('libreria_inicializado', 'true');
-    } else {
-      // Recuperar de localStorage
-      try {
-        const libros = JSON.parse(localStorage.getItem('libreria_libros')) || [];
-        const clientes = JSON.parse(localStorage.getItem('libreria_clientes')) || [];
-        const ventas = JSON.parse(localStorage.getItem('libreria_ventas')) || [];
-        const editoriales = JSON.parse(localStorage.getItem('libreria_editoriales')) || [];
-        const generos = JSON.parse(localStorage.getItem('libreria_generos')) || [];
-        const autores = JSON.parse(localStorage.getItem('libreria_autores')) || [];
-
-        _state.libros = libros.length ? libros : _deepClone(SEED.libros);
-        _state.clientes = clientes.length ? clientes : _deepClone(SEED.clientes);
-        _state.ventas = ventas.length ? ventas : _deepClone(SEED.ventas);
-        _state.editoriales = editoriales.length ? editoriales : _deepClone(SEED.editoriales);
-        _state.generos = generos.length ? generos : _deepClone(SEED.generos);
-        _state.autores = autores.length ? autores : _deepClone(SEED.autores);
-
-        // Fallback: si localStorage está corrupto/vacío, usar semilla
-        if (!_state.libros.length) this.cargarSemilla();
-      } catch (e) {
-        console.warn('Error leyendo localStorage, usando semilla:', e);
-        this.cargarSemilla();
-      }
+    if (resEd.ok && Array.isArray(resEd.data)) {
+      _state.editoriales = resEd.data.map(e => ({ id: Number(e.id), nombre: e.nombre, pais: e.pais }));
+    }
+    if (resGen.ok && Array.isArray(resGen.data)) {
+      _state.generos = resGen.data.map(g => ({ id: Number(g.id), nombre: g.nombre }));
+    }
+    if (resLib.ok && Array.isArray(resLib.data)) {
+      _state.libros = resLib.data.map(_normalizarLibro);
+    }
+    if (resVen.ok && Array.isArray(resVen.data)) {
+      _state.ventas = resVen.data.map(_normalizarVenta);
     }
 
     _state._inicializado = true;
-  },
 
-  /**
-   * Carga los datos semilla en memoria (copia profunda).
-   */
-  cargarSemilla() {
-    _state.libros = _deepClone(SEED.libros);
-    _state.editoriales = _deepClone(SEED.editoriales);
-    _state.generos = _deepClone(SEED.generos);
-    _state.autores = _deepClone(SEED.autores);
-    _state.clientes = _deepClone(SEED.clientes);
-    _state.ventas = _deepClone(SEED.ventas);
-  },
+    const errores = [
+      ...(resEd.ok ? [] : resEd.errors),
+      ...(resGen.ok ? [] : resGen.errors),
+      ...(resLib.ok ? [] : resLib.errors)
+    ];
 
-  /**
-   * Persiste todo el estado en localStorage.
-   * RN-PER-01, RN-PER-04
-   */
-  guardarTodos() {
-    try {
-      localStorage.setItem('libreria_libros', JSON.stringify(_state.libros));
-      localStorage.setItem('libreria_clientes', JSON.stringify(_state.clientes));
-      localStorage.setItem('libreria_ventas', JSON.stringify(_state.ventas));
-      localStorage.setItem('libreria_editoriales', JSON.stringify(_state.editoriales));
-      localStorage.setItem('libreria_generos', JSON.stringify(_state.generos));
-      localStorage.setItem('libreria_autores', JSON.stringify(_state.autores));
-    } catch (e) {
-      console.error('Error guardando en localStorage:', e);
-    }
+    return {
+      ok: resEd.ok && resGen.ok && resLib.ok,
+      errors: [...new Set(errores)]
+    };
   },
 
   // ========================================
-  // GETTERS READ-ONLY (retornan copias shallow)
+  // GETTERS SINCRÓNICOS DEL CACHÉ ACTUAL
   // ========================================
   getLibros() { return [..._state.libros]; },
   getEditoriales() { return [..._state.editoriales]; },
   getGeneros() { return [..._state.generos]; },
-  getAutores() { return [..._state.autores]; },
   getClientes() { return [..._state.clientes]; },
   getVentas() { return [..._state.ventas]; },
 
-  // ========================================
-  // HELPERS INTERNOS EXPUESTOS (para C-04+)
-  // ========================================
-  _findLibroById,
-  _findClienteById,
-  _findEditorialById,
-  _findGeneroById,
-  _findAutorById,
-  _isbnExists,
-  _emailExists,
+  _findEditorialById(id) {
+    return _state.editoriales.find(e => Number(e.id) === Number(id)) || null;
+  },
+  _findGeneroById(id) {
+    return _state.generos.find(g => Number(g.id) === Number(id)) || null;
+  },
+  _findLibroById(id) {
+    return _state.libros.find(l => Number(l.id) === Number(id)) || null;
+  },
+  _findClienteById(id) {
+    return _state.clientes.find(c => Number(c.id) === Number(id)) || null;
+  },
 
   // ========================================
-  // MUTACIONES — STUBS (implementación en C-04/C-05)
+  // OPERACIONES REMOTAS — CATÁLOGO Y LIBROS
   // ========================================
+
   /**
-   * Crea un libro con validaciones RN-LIB-01..06.
-   * @param {Object} libro - Datos del libro
-   * @returns {{ok: boolean, errors: string[], libro?: Object}}
+   * Consulta GET /libros/ con filtros opcionales de título y género.
+   * @param {{titulo?: string, generoId?: number|string, limit?: number, offset?: number}} filtros
+   * @returns {Promise<{ok: boolean, libros: Array, errors: string[]}>}
    */
-  crearLibro(libro) {
+  async fetchLibros(filtros = {}) {
+    const params = new URLSearchParams();
+    params.set('limit', String(filtros.limit ?? 100));
+    params.set('offset', String(filtros.offset ?? 0));
+
+    const titulo = String(filtros.titulo ?? '').trim();
+    if (titulo) {
+      params.set('titulo', titulo);
+    }
+    if (filtros.generoId !== undefined && filtros.generoId !== null && String(filtros.generoId) !== '') {
+      params.set('genero_id', String(filtros.generoId));
+    }
+
+    const res = await _request(`/libros/?${params.toString()}`);
+    if (!res.ok) {
+      return { ok: false, libros: [], errors: res.errors };
+    }
+
+    const lista = Array.isArray(res.data) ? res.data.map(_normalizarLibro) : [];
+    // Si se consultó sin filtros, actualizar caché general de libros
+    if (!titulo && !filtros.generoId) {
+      _state.libros = lista;
+    }
+    return { ok: true, libros: lista, errors: [] };
+  },
+
+  /**
+   * Consulta GET /libros/{id} para obtener el detalle completo incluyendo autores.
+   * @param {number|string} id
+   * @returns {Promise<{ok: boolean, libro?: Object, errors: string[]}>}
+   */
+  async fetchLibroDetalle(id) {
+    const libroId = Number(id);
+    if (!Number.isInteger(libroId) || libroId <= 0) {
+      return { ok: false, errors: ['ID de libro inválido.'] };
+    }
+    const res = await _request(`/libros/${libroId}`);
+    if (!res.ok) {
+      return { ok: false, errors: res.errors };
+    }
+    const detalle = _normalizarLibro(res.data);
+    const idx = _state.libros.findIndex(l => l.id === detalle.id);
+    if (idx >= 0) {
+      _state.libros[idx] = { ..._state.libros[idx], ...detalle };
+    }
+    return { ok: true, libro: detalle, errors: [] };
+  },
+
+  /**
+   * Consulta GET /autores/{id} para verificar la existencia de un autor antes de agregarlo a un libro.
+   * @param {number|string} id
+   * @returns {Promise<{ok: boolean, autor?: {id: number, nombre: string, nacionalidad: string}, errors: string[]}>}
+   */
+  async fetchAutorPorId(id) {
+    const autorId = Number(id);
+    if (!Number.isInteger(autorId) || autorId <= 0) {
+      return { ok: false, errors: ['Ingrese un ID de autor numérico mayor a 0.'] };
+    }
+    const res = await _request(`/autores/${autorId}`);
+    if (!res.ok) {
+      return { ok: false, errors: res.errors };
+    }
+    const autor = {
+      id: Number(res.data.id),
+      nombre: res.data.nombre,
+      nacionalidad: res.data.nacionalidad
+    };
+    _state.autoresCache.set(autor.id, autor);
+    return { ok: true, autor, errors: [] };
+  },
+
+  /**
+   * Crea un libro enviando POST /libros/ a FastAPI.
+   * @param {Object} datos
+   * @returns {Promise<{ok: boolean, libro?: Object, errors: string[]}>}
+   */
+  async crearLibro(datos) {
     const errors = [];
+    const titulo = String(datos?.titulo ?? '').trim();
+    const isbn = String(datos?.isbn ?? '').trim();
+    const precio = Number(datos?.precio);
+    const stock = datos?.stock !== undefined && datos?.stock !== '' ? Number(datos.stock) : 0;
+    const editorialId = Number(datos?.editorialId ?? datos?.editorial_id);
+    const rawGenero = datos?.generoId ?? datos?.genero_id;
+    const generoId = rawGenero !== undefined && rawGenero !== null && String(rawGenero) !== ''
+      ? Number(rawGenero)
+      : null;
+    const autores = Array.isArray(datos?.autores) ? datos.autores : [];
 
-    const titulo = String(libro?.titulo ?? '').trim();
-    const isbn = String(libro?.isbn ?? '').trim();
-    const precio = Number(libro?.precio);
-    const editorialId = libro?.editorialId ?? '';
-    const generoId = libro?.generoId ?? '';
-    const autorIds = Array.isArray(libro?.autorIds)
-      ? libro.autorIds
-      : (libro?.autorIds ? [libro.autorIds] : []);
-
-    // RN-LIB-01: título requerido
-    if (titulo === '') errors.push('El título es obligatorio.');
-
-    // RN-LIB-02, RN-LIB-08: ISBN requerido y único (normalizado)
-    const isbnNormalizado = normalizeISBN(isbn);
-    if (isbnNormalizado === '') {
-      errors.push('El ISBN es obligatorio.');
-    } else if (_isbnExists(isbnNormalizado)) {
-      errors.push('El ISBN ya está registrado.');
-    }
-
-    // RN-LIB-03: precio numérico > 0
-    if (!Number.isFinite(precio) || precio <= 0) {
-      errors.push('El precio debe ser un número mayor a 0.');
-    }
-
-    // RN-LIB-04: editorial obligatoria y existente
-    if (!editorialId || !_findEditorialById(editorialId)) {
-      errors.push('Debe seleccionar una editorial existente.');
-    }
-
-    // RN-LIB-05: género opcional; si se elige, debe existir
-    let generoFinal = null;
-    if (generoId) {
-      if (!_findGeneroById(generoId)) {
-        errors.push('El género seleccionado no existe.');
-      } else {
-        generoFinal = generoId;
-      }
-    }
-
-    // RN-LIB-06: al menos un autor existente
-    const autores = autorIds.filter(id => id);
-    if (autores.length < 1) {
-      errors.push('Debe seleccionar al menos un autor.');
-    } else if (autores.some(id => !_findAutorById(id))) {
-      errors.push('Uno o más autores seleccionados no existen.');
-    }
+    if (!titulo) errors.push('El título es obligatorio.');
+    if (!normalizeISBN(isbn)) errors.push('El ISBN es obligatorio.');
+    if (!Number.isFinite(precio) || precio <= 0) errors.push('El precio debe ser un número mayor a 0.');
+    if (!Number.isInteger(stock) || stock < 0) errors.push('El stock debe ser un entero mayor o igual a 0.');
+    if (!Number.isInteger(editorialId) || editorialId <= 0) errors.push('Debe seleccionar una editorial válida.');
+    if (autores.length < 1) errors.push('Debe agregar al menos un autor verificado al libro.');
 
     if (errors.length > 0) {
       return { ok: false, errors };
     }
 
-    // DEC-08: ID estable con re-generación si colisiona
-    let id = generateId();
-    while (_findLibroById(id)) {
-      id = generateId();
-    }
-
-    const libroCreado = {
-      id,
-      titulo,
+    const payload = {
       isbn,
+      titulo,
       precio,
-      editorialId,
-      generoId: generoFinal,
-      autorIds: autores
+      stock,
+      editorial_id: editorialId,
+      genero_id: generoId,
+      autores: autores.map((a, idx) => ({
+        autor_id: Number(a.autor_id ?? a.id),
+        rol: a.rol || 'autor',
+        orden: Number(a.orden ?? idx + 1)
+      }))
     };
 
-    _state.libros.push(libroCreado);
-    this.guardarTodos();
-    return { ok: true, errors: [], libro: libroCreado };
+    const res = await _request('/libros/', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      return { ok: false, errors: res.errors };
+    }
+
+    const creado = _normalizarLibro(res.data);
+    _state.libros.push(creado);
+    return { ok: true, libro: creado, errors: [] };
+  },
+
+  // ========================================
+  // OPERACIONES REMOTAS — CLIENTES
+  // ========================================
+
+  /**
+   * Consulta GET /clientes/{id} y registra el cliente en la sesión actual.
+   * @param {number|string} id
+   * @returns {Promise<{ok: boolean, cliente?: Object, errors: string[]}>}
+   */
+  async fetchClientePorId(id) {
+    const clienteId = Number(id);
+    if (!Number.isInteger(clienteId) || clienteId <= 0) {
+      return { ok: false, errors: ['Ingrese un ID de cliente numérico mayor a 0.'] };
+    }
+    const res = await _request(`/clientes/${clienteId}`);
+    if (!res.ok) {
+      return { ok: false, errors: res.errors };
+    }
+    const cliente = _registrarClienteEnSesion(res.data);
+    return { ok: true, cliente, errors: [] };
   },
 
   /**
-   * Crea un cliente con validaciones RN-CLI-01..03.
-   * @param {Object} cliente - Datos del cliente
-   * @returns {{ok: boolean, errors: string[], cliente?: Object}}
+   * Crea un cliente enviando POST /clientes/ a FastAPI.
+   * @param {{nombre?: string, nombreCompleto?: string, email: string}} datos
+   * @returns {Promise<{ok: boolean, cliente?: Object, errors: string[]}>}
    */
-  crearCliente(cliente) {
+  async crearCliente(datos) {
     const errors = [];
+    const nombre = String(datos?.nombre ?? datos?.nombreCompleto ?? '').trim();
+    const email = String(datos?.email ?? '').trim();
 
-    const nombreCompleto = String(cliente?.nombreCompleto ?? '').trim();
-    const email = String(cliente?.email ?? '').trim();
-
-    // RN-CLI-01: nombre completo requerido
-    if (nombreCompleto === '') errors.push('El nombre completo es obligatorio.');
-
-    // RN-CLI-02: email requerido y formato válido
-    if (email === '') {
+    if (!nombre) errors.push('El nombre completo es obligatorio.');
+    if (!email) {
       errors.push('El email es obligatorio.');
     } else if (!isValidEmail(email)) {
       errors.push('El formato del email no es válido.');
-    } else if (_emailExists(email.toLowerCase())) {
-      // RN-CLI-03: email único case-insensitive (ya viene con trim)
-      errors.push('El email ya está registrado.');
     }
 
     if (errors.length > 0) {
       return { ok: false, errors };
     }
 
-    // DEC-08: ID estable con re-generación si colisiona
-    let id = generateId();
-    while (_findClienteById(id)) {
-      id = generateId();
+    const res = await _request('/clientes/', {
+      method: 'POST',
+      body: JSON.stringify({ nombre, email })
+    });
+
+    if (!res.ok) {
+      return { ok: false, errors: res.errors };
     }
 
-    const clienteCreado = { id, nombreCompleto, email };
+    const cliente = _registrarClienteEnSesion(res.data);
+    return { ok: true, cliente, errors: [] };
+  },
 
-    _state.clientes.push(clienteCreado);
-    this.guardarTodos();
-    return { ok: true, errors: [], cliente: clienteCreado };
+  // ========================================
+  // OPERACIONES REMOTAS — VENTAS E HISTORIAL
+  // ========================================
+
+  /**
+   * Consulta GET /ventas/ para poblar el historial.
+   * @returns {Promise<{ok: boolean, ventas: Array, errors: string[]}>}
+   */
+  async fetchVentas() {
+    const res = await _request('/ventas/?limit=100&offset=0');
+    if (!res.ok) {
+      return { ok: false, ventas: [], errors: res.errors };
+    }
+    _state.ventas = Array.isArray(res.data) ? res.data.map(_normalizarVenta) : [];
+    return { ok: true, ventas: [..._state.ventas], errors: [] };
   },
 
   /**
-   * Crea una venta con validaciones RN-VTA-01..10.
-   * @param {Object} venta - Datos de la venta: { clienteId, renglones: [{ libroId, cantidad }] }
-   * @returns {{ok: boolean, errors: string[], venta?: Object}}
+   * Consulta GET /ventas/{id} para obtener el detalle actualizado de una venta.
+   * @param {number|string} id
+   * @returns {Promise<{ok: boolean, venta?: Object, errors: string[]}>}
    */
-  crearVenta(venta) {
-    const errors = [];
-
-    const clienteId = venta?.clienteId ?? '';
-    const renglonesEntrada = Array.isArray(venta?.renglones) ? venta.renglones : [];
-
-    // RN-VTA-01: Cliente obligatorio y existente
-    if (!clienteId) {
-      errors.push('Debe seleccionar un cliente.');
-    } else if (!_findClienteById(clienteId)) {
-      errors.push('El cliente seleccionado no existe.');
+  async fetchVentaPorId(id) {
+    const ventaId = Number(id);
+    if (!Number.isInteger(ventaId) || ventaId <= 0) {
+      return { ok: false, errors: ['ID de venta inválido.'] };
     }
+    const res = await _request(`/ventas/${ventaId}`);
+    if (!res.ok) {
+      return { ok: false, errors: res.errors };
+    }
+    const venta = _normalizarVenta(res.data);
+    const idx = _state.ventas.findIndex(v => v.id === venta.id);
+    if (idx >= 0) {
+      _state.ventas[idx] = venta;
+    } else {
+      _state.ventas.unshift(venta);
+    }
+    return { ok: true, venta, errors: [] };
+  },
 
-    // RN-VTA-02: Mínimo un renglón
+  /**
+   * Envía POST /ventas/ al backend y refresca el stock del catálogo.
+   * @param {{clienteId: number|string, renglones: Array<{libroId: number|string, cantidad: number}>}} datos
+   * @returns {Promise<{ok: boolean, venta?: Object, errors: string[]}>}
+   */
+  async crearVenta(datos) {
+    const errors = [];
+    const clienteId = Number(datos?.clienteId ?? datos?.cliente_id);
+    const renglonesEntrada = Array.isArray(datos?.renglones) ? datos.renglones : [];
+
+    if (!Number.isInteger(clienteId) || clienteId <= 0) {
+      errors.push('Debe seleccionar o verificar un cliente válido.');
+    }
     if (renglonesEntrada.length === 0) {
       errors.push('La venta debe tener al menos un renglón.');
     }
 
-    // Procesar y validar renglones
-    const renglonesProcesados = [];
-    const librosVistos = new Set();
-
-    for (const [index, renglon] of renglonesEntrada.entries()) {
-      const libroId = renglon?.libroId ?? '';
-      const cantidad = Number(renglon?.cantidad);
-
-      // RN-VTA-03: Cantidad entera > 0
+    const renglonesPayload = [];
+    for (const [idx, r] of renglonesEntrada.entries()) {
+      const libroId = Number(r.libroId ?? r.libro_id);
+      const cantidad = Number(r.cantidad);
+      if (!Number.isInteger(libroId) || libroId <= 0) {
+        errors.push(`Renglón ${idx + 1}: libro inválido.`);
+        continue;
+      }
       if (!Number.isInteger(cantidad) || cantidad <= 0) {
-        errors.push(`Renglón ${index + 1}: la cantidad debe ser un entero mayor a 0.`);
+        errors.push(`Renglón ${idx + 1}: la cantidad debe ser un entero mayor a 0.`);
         continue;
       }
-
-      // RN-VTA-04: Libro existente
-      const libro = _findLibroById(libroId);
-      if (!libro) {
-        errors.push(`Renglón ${index + 1}: el libro seleccionado no existe.`);
-        continue;
-      }
-
-      // RN-VTA-05: Sin libros duplicados en la misma venta
-      if (librosVistos.has(libroId)) {
-        // Buscar el renglón existente y sumar cantidad
-        const renglonExistente = renglonesProcesados.find(r => r.libroId === libroId);
-        if (renglonExistente) {
-          renglonExistente.cantidad += cantidad;
-          renglonExistente.subtotal = Number((renglonExistente.cantidad * renglonExistente.precioUnitarioSnapshot).toFixed(2));
-        }
-        continue;
-      }
-
-      librosVistos.add(libroId);
-
-      // Snapshot del precio (RN-VTA-08, RN-VTA-09)
-      const precioUnitarioSnapshot = libro.precio;
-      const subtotal = Number((cantidad * precioUnitarioSnapshot).toFixed(2));
-
-      renglonesProcesados.push({
-        libroId,
-        titulo: libro.titulo,
-        isbn: libro.isbn,
-        cantidad,
-        precioUnitarioSnapshot,
-        subtotal
-      });
+      renglonesPayload.push({ libro_id: libroId, cantidad });
     }
 
-    // Validación final: si hubo errores en renglones, no continuar
     if (errors.length > 0) {
       return { ok: false, errors };
     }
 
-    // Recalcular total con 2 decimales (RN-VTA-07)
-    const total = Number(renglonesProcesados.reduce((sum, r) => sum + r.subtotal, 0).toFixed(2));
+    const res = await _request('/ventas/', {
+      method: 'POST',
+      body: JSON.stringify({
+        cliente_id: clienteId,
+        renglones: renglonesPayload
+      })
+    });
 
-    // DEC-08: ID estable con re-generación si colisiona
-    let id = generateId();
-    while (_findById(_state.ventas, id)) {
-      id = generateId();
+    if (!res.ok) {
+      return { ok: false, errors: res.errors };
     }
 
-    // Fecha ISO (SUP-07)
-    const fecha = new Date().toISOString();
+    const ventaCreada = _normalizarVenta(res.data);
+    _state.ventas.unshift(ventaCreada);
 
-    const ventaCreada = {
-      id,
-      fecha,
-      clienteId,
-      renglones: renglonesProcesados,
-      total
-    };
+    // Refrescar libros desde la API para reflejar el descuento de stock
+    await this.fetchLibros();
 
-    _state.ventas.push(ventaCreada);
-    this.guardarTodos();
-    return { ok: true, errors: [], venta: ventaCreada };
+    return { ok: true, venta: ventaCreada, errors: [] };
   }
 };

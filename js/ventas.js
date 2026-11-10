@@ -1,11 +1,13 @@
 // ========================================
-// VENTAS.JS — Composición y Confirmación de Venta
+// VENTAS.JS — Composición y Confirmación de Venta (Conectado a LIBRERIA-API)
 // ========================================
 
 import { Data } from './data.js';
 import { formatPriceARS } from './utils.js';
-import { poblarSelectLibro, poblarSelectCliente } from './catalogo.js';
-import { mostrarVista } from './nav.js';
+import { poblarSelectLibro, poblarSelectCliente, actualizarCatalogoRemoto } from './catalogo.js';
+import { renderListadoLibros } from './libros.js';
+import { renderListadoClientes } from './clientes.js';
+import { renderHistorial } from './historial.js';
 
 // ========================================
 // ESTADO LOCAL DEL COMPOSER
@@ -26,10 +28,8 @@ function _limpiarRenglonesComposer() {
 
 function _renderTablaRenglones() {
   const tbody = document.querySelector('#tabla-renglones tbody');
-  const filaVacia = tbody.querySelector('.fila-vacia');
   if (!tbody) return;
 
-  // Limpiar filas de datos (mantener fila vacía)
   while (tbody.firstChild) {
     tbody.removeChild(tbody.firstChild);
   }
@@ -47,31 +47,55 @@ function _renderTablaRenglones() {
 
   _composerState.renglones.forEach((renglon, index) => {
     const tr = document.createElement('tr');
-    tr.dataset.index = index;
+    tr.dataset.index = String(index);
 
-    const celdas = [
-      renglon.titulo,
-      String(renglon.cantidad),
-      formatPriceARS(renglon.precioUnitarioSnapshot),
-      formatPriceARS(renglon.subtotal),
-      '' // Acciones
-    ];
+    // 1. Libro
+    const tdLibro = document.createElement('td');
+    tdLibro.textContent = `#${renglon.libroId} — ${renglon.titulo}`;
+    tr.appendChild(tdLibro);
 
-    celdas.forEach((valor, i) => {
-      const td = document.createElement('td');
-      if (i === 4) {
-        // Botón eliminar
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn btn-eliminar';
-        btn.textContent = 'Quitar';
-        btn.addEventListener('click', () => _quitarRenglon(index));
-        td.appendChild(btn);
+    // 2. Cantidad editable ("Permití cambiar cantidades y quitar renglones")
+    const tdCant = document.createElement('td');
+    const inputCant = document.createElement('input');
+    inputCant.type = 'number';
+    inputCant.min = '1';
+    inputCant.step = '1';
+    inputCant.value = String(renglon.cantidad);
+    inputCant.style.width = '72px';
+    inputCant.setAttribute('aria-label', `Cantidad para ${renglon.titulo}`);
+    inputCant.addEventListener('change', () => {
+      const nuevaCant = Number(inputCant.value);
+      if (Number.isInteger(nuevaCant) && nuevaCant > 0) {
+        renglon.cantidad = nuevaCant;
+        renglon.subtotal = Number((nuevaCant * renglon.precioUnitarioSnapshot).toFixed(2));
+        _renderTablaRenglones();
+        _actualizarTotal();
       } else {
-        td.textContent = valor;
+        inputCant.value = String(renglon.cantidad);
       }
-      tr.appendChild(td);
     });
+    tdCant.appendChild(inputCant);
+    tr.appendChild(tdCant);
+
+    // 3. Precio unitario
+    const tdPrecio = document.createElement('td');
+    tdPrecio.textContent = formatPriceARS(renglon.precioUnitarioSnapshot);
+    tr.appendChild(tdPrecio);
+
+    // 4. Subtotal
+    const tdSubtotal = document.createElement('td');
+    tdSubtotal.textContent = formatPriceARS(renglon.subtotal);
+    tr.appendChild(tdSubtotal);
+
+    // 5. Acciones (Quitar)
+    const tdAcciones = document.createElement('td');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-eliminar';
+    btn.textContent = 'Quitar';
+    btn.addEventListener('click', () => _quitarRenglon(index));
+    tdAcciones.appendChild(btn);
+    tr.appendChild(tdAcciones);
 
     tbody.appendChild(tr);
   });
@@ -84,10 +108,16 @@ function _actualizarTotal() {
   totalEl.textContent = formatPriceARS(total);
 }
 
+function _obtenerClienteIdSeleccionado() {
+  const selectVal = document.getElementById('venta-cliente')?.value;
+  const inputVal = document.getElementById('venta-cliente-id-input')?.value;
+  return selectVal || inputVal || '';
+}
+
 function _toggleBotonConfirmar() {
   const btn = document.getElementById('btn-confirmar-venta');
   if (!btn) return;
-  const hayCliente = document.getElementById('venta-cliente')?.value;
+  const hayCliente = Boolean(_obtenerClienteIdSeleccionado());
   btn.disabled = _composerState.renglones.length === 0 || !hayCliente;
 }
 
@@ -100,7 +130,10 @@ function _quitarRenglon(index) {
 
 function _mostrarErroresVenta(errors) {
   const contenedor = document.getElementById('errores-venta');
+  const exitoEl = document.getElementById('exito-venta');
+  if (exitoEl) exitoEl.hidden = true;
   if (!contenedor) return;
+
   while (contenedor.firstChild) {
     contenedor.removeChild(contenedor.firstChild);
   }
@@ -114,29 +147,102 @@ function _mostrarErroresVenta(errors) {
   contenedor.hidden = false;
 }
 
+function _mostrarExitoVenta(venta) {
+  const exitoEl = document.getElementById('exito-venta');
+  const contenedorErrores = document.getElementById('errores-venta');
+  if (contenedorErrores) contenedorErrores.hidden = true;
+  if (!exitoEl) return;
+
+  while (exitoEl.firstChild) {
+    exitoEl.removeChild(exitoEl.firstChild);
+  }
+
+  const pTitulo = document.createElement('p');
+  pTitulo.style.fontWeight = '600';
+  pTitulo.textContent = `Venta #${venta.id} registrada (201 Created) — Total confirmado por la API: ${formatPriceARS(venta.total)}`;
+  exitoEl.appendChild(pTitulo);
+
+  if (Array.isArray(venta.renglones) && venta.renglones.length > 0) {
+    const ul = document.createElement('ul');
+    ul.style.margin = '0.35rem 0 0 1.2rem';
+    venta.renglones.forEach(r => {
+      const li = document.createElement('li');
+      const pu = r.precio_unitario ?? r.precioUnitarioSnapshot ?? 0;
+      li.textContent = `${r.titulo} (#${r.libro_id ?? r.libroId}): ${r.cantidad} x ${formatPriceARS(pu)} = ${formatPriceARS(r.subtotal)}`;
+      ul.appendChild(li);
+    });
+    exitoEl.appendChild(ul);
+  }
+
+  exitoEl.hidden = false;
+}
+
 // ========================================
 // FORMULARIO DE VENTA
 // ========================================
 export function bindFormVenta() {
   const form = document.getElementById('form-venta');
   const selectLibro = document.getElementById('venta-libro');
+  const inputLibroManual = document.getElementById('venta-libro-id-manual');
+  const chkForzarSeparado = document.getElementById('venta-forzar-renglon-separado');
   const inputCantidad = document.getElementById('venta-cantidad');
   const btnAgregar = document.getElementById('btn-agregar-renglon');
   const btnConfirmar = document.getElementById('btn-confirmar-venta');
   const selectCliente = document.getElementById('venta-cliente');
+  const inputClienteId = document.getElementById('venta-cliente-id-input');
+  const btnVerificarCliente = document.getElementById('btn-verificar-cliente-venta');
 
   if (!form || !selectLibro || !inputCantidad || !btnAgregar || !btnConfirmar || !selectCliente) return;
 
-  // Actualizar botón confirmar cuando cambia cliente
-  selectCliente.addEventListener('change', _toggleBotonConfirmar);
+  selectCliente.addEventListener('change', () => {
+    if (selectCliente.value && inputClienteId) {
+      inputClienteId.value = '';
+    }
+    _toggleBotonConfirmar();
+  });
+
+  if (inputClienteId) {
+    inputClienteId.addEventListener('input', _toggleBotonConfirmar);
+  }
+
+  // Verificar cliente por ID con GET /clientes/{id}
+  if (btnVerificarCliente && inputClienteId) {
+    btnVerificarCliente.addEventListener('click', async () => {
+      const idVal = inputClienteId.value;
+      if (!idVal) {
+        _mostrarErroresVenta(['Ingrese un ID de cliente para verificar.']);
+        return;
+      }
+
+      btnVerificarCliente.disabled = true;
+      const res = await Data.fetchClientePorId(idVal);
+      btnVerificarCliente.disabled = false;
+
+      if (!res.ok) {
+        _mostrarErroresVenta(res.errors);
+        return;
+      }
+
+      const contenedorErrores = document.getElementById('errores-venta');
+      if (contenedorErrores) contenedorErrores.hidden = true;
+
+      poblarSelectCliente(selectCliente);
+      selectCliente.value = String(res.cliente.id);
+      inputClienteId.value = '';
+      renderListadoClientes();
+      _toggleBotonConfirmar();
+    });
+  }
 
   // Agregar renglón
   btnAgregar.addEventListener('click', () => {
-    const libroId = selectLibro.value;
+    const manualId = inputLibroManual && inputLibroManual.value ? Number(inputLibroManual.value) : null;
+    const libroId = manualId || Number(selectLibro.value);
     const cantidad = Number(inputCantidad.value);
+    const forzarSeparado = Boolean(chkForzarSeparado && chkForzarSeparado.checked);
 
-    if (!libroId) {
-      _mostrarErroresVenta(['Debe seleccionar un libro.']);
+    if (!libroId || !Number.isInteger(libroId) || libroId <= 0) {
+      _mostrarErroresVenta(['Debe seleccionar un libro o ingresar un ID de libro entero positivo.']);
       return;
     }
 
@@ -145,49 +251,51 @@ export function bindFormVenta() {
       return;
     }
 
-    const libro = Data.getLibros().find(l => l.id === libroId);
-    if (!libro) {
-      _mostrarErroresVenta(['El libro seleccionado no existe.']);
-      return;
-    }
+    const libro = Data._findLibroById(libroId);
+    const titulo = libro ? libro.titulo : `Libro ID #${libroId} (no verificado en catálogo)`;
+    const precio = libro ? libro.precio : 0;
+    const isbn = libro ? libro.isbn : '—';
 
-    // RN-VTA-05: Verificar duplicado - si existe, modificar cantidad
-    const existente = _composerState.renglones.find(r => r.libroId === libroId);
+    const existente = !forzarSeparado
+      ? _composerState.renglones.find(r => Number(r.libroId) === libroId)
+      : null;
+
     if (existente) {
       existente.cantidad += cantidad;
       existente.subtotal = Number((existente.cantidad * existente.precioUnitarioSnapshot).toFixed(2));
     } else {
       _composerState.renglones.push({
         libroId,
-        titulo: libro.titulo,
-        isbn: libro.isbn,
+        titulo,
+        isbn,
         cantidad,
-        precioUnitarioSnapshot: libro.precio,
-        subtotal: Number((cantidad * libro.precio).toFixed(2))
+        precioUnitarioSnapshot: precio,
+        subtotal: Number((cantidad * precio).toFixed(2))
       });
     }
 
     const contenedorErrores = document.getElementById('errores-venta');
     if (contenedorErrores) contenedorErrores.hidden = true;
+    const exitoEl = document.getElementById('exito-venta');
+    if (exitoEl) exitoEl.hidden = true;
 
     _renderTablaRenglones();
     _actualizarTotal();
     _toggleBotonConfirmar();
 
-    // Reset cantidad a 1
-    inputCantidad.value = 1;
+    inputCantidad.value = '1';
+    if (inputLibroManual) inputLibroManual.value = '';
     selectLibro.focus();
   });
 
-  // Confirmar venta
-  form.addEventListener('submit', (e) => {
+  // Confirmar venta (POST /ventas/)
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const clienteId = selectCliente.value;
-    const contenedorErrores = document.getElementById('errores-venta');
+    const clienteId = _obtenerClienteIdSeleccionado();
 
     if (!clienteId) {
-      _mostrarErroresVenta(['Debe seleccionar un cliente.']);
+      _mostrarErroresVenta(['Debe seleccionar o ingresar un ID de cliente.']);
       return;
     }
 
@@ -196,34 +304,32 @@ export function bindFormVenta() {
       return;
     }
 
-    const resultado = Data.crearVenta({
-      clienteId,
+    btnConfirmar.disabled = true;
+    const resultado = await Data.crearVenta({
+      clienteId: Number(clienteId),
       renglones: _composerState.renglones.map(r => ({
-        libroId: r.libroId,
-        cantidad: r.cantidad
+        libroId: Number(r.libroId),
+        cantidad: Number(r.cantidad)
       }))
     });
 
     if (!resultado.ok) {
+      // Conservar el borrador cuando se rechaza la operación (409 o 422)
+      _toggleBotonConfirmar();
       _mostrarErroresVenta(resultado.errors);
       return;
     }
 
-    if (contenedorErrores) contenedorErrores.hidden = true;
-
-    // Éxito: limpiar formulario y composer
     form.reset();
     _limpiarRenglonesComposer();
 
-    // Actualizar selectores por si se agregaron libros/clientes en esta sesión
+    await actualizarCatalogoRemoto();
+    await renderHistorial();
+    renderListadoLibros();
     poblarSelectLibro(document.getElementById('venta-libro'));
     poblarSelectCliente(document.getElementById('venta-cliente'));
 
-    // Mostrar mensaje de éxito (RN-VTA-12)
-    alert('Venta confirmada correctamente.');
-
-    // Opcional: navegar a historial
-    // mostrarVista('historial');
+    _mostrarExitoVenta(resultado.venta);
   });
 
   // Reset del formulario (botón Cancelar)
@@ -239,6 +345,8 @@ export function bindFormVenta() {
 // Inicializar composer al mostrar la vista
 export function inicializarVenta() {
   _limpiarRenglonesComposer();
+  const exitoEl = document.getElementById('exito-venta');
+  if (exitoEl) exitoEl.hidden = true;
   poblarSelectLibro(document.getElementById('venta-libro'));
   poblarSelectCliente(document.getElementById('venta-cliente'));
 }

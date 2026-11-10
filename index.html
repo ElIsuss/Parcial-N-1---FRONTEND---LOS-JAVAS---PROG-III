@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Librería — Parcial 1 Programación III</title>
+  <title>Librería — Trabajo Práctico Global Programación III</title>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/layout.css">
   <link rel="stylesheet" href="css/catalogo.css">
@@ -13,7 +13,7 @@
 <body>
   <!-- ===== HEADER + NAV ===== -->
   <header class="site-header">
-    <h1>Librería <span class="subtitle">Parcial 1 — Programación III</span></h1>
+    <h1>Librería <span class="subtitle">Global — Programación III</span></h1>
     <nav class="site-nav" aria-label="Navegación principal">
       <ul class="nav-list">
         <li><a href="#vista-catalogo" class="nav-link" data-vista="catalogo" aria-current="page">Catálogo</a></li>
@@ -28,6 +28,9 @@
   <!-- ===== MAIN: 5 VISTAS (SPA) ===== -->
   <main class="site-main">
 
+    <!-- Banner de estado de conexión global -->
+    <div id="estado-conexion" class="errores-formulario" role="alert" aria-live="assertive" hidden></div>
+
     <!-- VISTA 1: CATÁLOGO -->
     <section id="vista-catalogo" class="vista activa" aria-labelledby="titulo-catalogo">
       <header class="vista-header">
@@ -37,12 +40,29 @@
         <form id="form-busqueda" class="form-busqueda" role="search">
           <label for="input-busqueda" class="visually-hidden">Buscar por título</label>
           <input type="search" id="input-busqueda" name="q" placeholder="Buscar libro por título…" autocomplete="off">
+          <label for="filtro-genero" class="visually-hidden">Filtrar por género</label>
+          <select id="filtro-genero" name="generoId" aria-label="Filtrar por género">
+            <option value="">Todos los géneros</option>
+          </select>
+          <label for="filtro-limit" class="visually-hidden">Cantidad por página</label>
+          <select id="filtro-limit" name="limit" aria-label="Libros por página">
+            <option value="20" selected>20 por pág.</option>
+            <option value="5">5 por pág.</option>
+            <option value="2">2 por pág.</option>
+            <option value="50">50 por pág.</option>
+          </select>
           <button type="submit" class="btn btn-buscar">Buscar</button>
           <button type="button" id="btn-limpiar-busqueda" class="btn btn-limpiar" hidden>Limpiar</button>
         </form>
+        <div class="catalogo-paginacion" aria-label="Paginación del catálogo">
+          <button type="button" id="btn-pagina-anterior" class="btn btn-secundario" disabled>Anterior</button>
+          <span id="info-paginacion" class="meta">Offset: 0</span>
+          <button type="button" id="btn-pagina-siguiente" class="btn btn-secundario">Siguiente</button>
+        </div>
       </div>
+      <p id="estado-catalogo" class="mensaje-vacio" aria-live="polite" hidden>Cargando catálogo…</p>
       <div id="contenedor-catalogo" class="catalogo-grid" role="list" aria-label="Listado de libros">
-        <!-- Se renderiza por JS (CH-03) -->
+        <!-- Se renderiza por JS desde GET /libros/ -->
       </div>
       <p id="mensaje-catalogo-vacio" class="mensaje-vacio" hidden>No se encontraron libros.</p>
     </section>
@@ -70,31 +90,47 @@
             <input type="number" id="libro-precio" name="precio" required min="0.01" step="0.01" placeholder="1500.00">
           </div>
           <div class="form-row">
+            <label for="libro-stock">Stock inicial *</label>
+            <input type="number" id="libro-stock" name="stock" required min="0" step="1" value="10" placeholder="10">
+          </div>
+          <div class="form-row">
             <label for="libro-editorial">Editorial *</label>
             <select id="libro-editorial" name="editorialId" required>
               <option value="">Seleccionar editorial…</option>
-              <!-- Options se poblan por JS desde editoriales[] (CH-03/04) -->
             </select>
           </div>
           <div class="form-row">
             <label for="libro-genero">Género</label>
             <select id="libro-genero" name="generoId">
               <option value="">Sin clasificar</option>
-              <!-- Options se poblan por JS desde generos[] -->
             </select>
           </div>
+
+          <!-- Búsqueda y asociación de Autores por ID (GET /autores/{id}) -->
           <div class="form-row">
-            <label>Autores * (mínimo 1)</label>
-            <div id="contenedor-autores" class="multi-select" role="group" aria-label="Seleccionar autores">
-              <!-- Checkboxes se generan por JS desde autores[] -->
+            <label for="autor-buscar-id">Autores * (verificar por ID con <code>GET /autores/{id}</code>)</label>
+            <div class="form-row--inline autor-buscador">
+              <input type="number" id="autor-buscar-id" min="1" step="1" placeholder="ID de autor (ej: 1)">
+              <select id="autor-rol" aria-label="Rol del autor">
+                <option value="autor">Autor</option>
+                <option value="coautor">Coautor</option>
+                <option value="traductor">Traductor</option>
+                <option value="ilustrador">Ilustrador</option>
+              </select>
+              <button type="button" id="btn-verificar-autor" class="btn btn-secundario">Verificar y agregar</button>
+            </div>
+            <div id="contenedor-autores" class="multi-select" role="group" aria-label="Autores seleccionados para el libro">
+              <!-- Lista de autores verificados para este libro -->
             </div>
           </div>
+
           <div class="form-actions">
             <button type="submit" class="btn btn-primario">Guardar Libro</button>
             <button type="reset" class="btn btn-secundario">Limpiar</button>
           </div>
         </fieldset>
         <div id="errores-libro" class="errores-formulario" aria-live="polite" hidden></div>
+        <div id="exito-libro" class="mensaje-exito" aria-live="polite" hidden></div>
       </form>
 
       <!-- Listado LIBROS -->
@@ -108,19 +144,18 @@
               <th scope="col">ISBN</th>
               <th scope="col">Editorial</th>
               <th scope="col">Género</th>
-              <th scope="col">Autores</th>
+              <th scope="col">Stock</th>
               <th scope="col">Precio</th>
             </tr>
           </thead>
           <tbody>
-            <!-- Rows se renderizan por JS (CH-04) -->
             <tr class="fila-vacia" hidden><td colspan="7">No hay libros registrados.</td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
-    <!-- VISTA 3: CLIENTES (ALTA + LISTADO) -->
+    <!-- VISTA 3: CLIENTES (ALTA + BÚSQUEDA POR ID + LISTADO) -->
     <section id="vista-clientes" class="vista" aria-labelledby="titulo-clientes">
       <header class="vista-header">
         <h2 id="titulo-clientes">Gestión de Clientes</h2>
@@ -143,11 +178,27 @@
           </div>
         </fieldset>
         <div id="errores-cliente" class="errores-formulario" aria-live="polite" hidden></div>
+        <div id="exito-cliente" class="mensaje-exito" aria-live="polite" hidden></div>
+      </form>
+
+      <!-- Buscador puntual de cliente por ID (GET /clientes/{id}) -->
+      <form id="form-buscar-cliente" class="form-alta" novalidate aria-label="Buscar cliente por ID">
+        <fieldset class="form-group">
+          <legend>Consultar Cliente por ID</legend>
+          <div class="form-row form-row--inline">
+            <div style="flex: 1;">
+              <label for="cliente-buscar-id">ID de cliente</label>
+              <input type="number" id="cliente-buscar-id" min="1" step="1" placeholder="Ej: 1">
+            </div>
+            <button type="submit" id="btn-buscar-cliente-id" class="btn btn-secundario">Buscar Cliente</button>
+          </div>
+          <div id="resultado-buscar-cliente" class="errores-formulario" aria-live="polite" hidden></div>
+        </fieldset>
       </form>
 
       <div class="table-container">
         <table id="tabla-clientes" class="tabla-datos" aria-describedby="desc-tabla-clientes">
-          <caption id="desc-tabla-clientes">Clientes registrados</caption>
+          <caption id="desc-tabla-clientes">Clientes en sesión (creados o consultados por ID)</caption>
           <thead>
             <tr>
               <th scope="col">ID</th>
@@ -156,7 +207,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr class="fila-vacia" hidden><td colspan="3">No hay clientes registrados.</td></tr>
+            <tr class="fila-vacia" hidden><td colspan="3">No hay clientes cargados en la sesión. Creá uno o buscá por ID.</td></tr>
           </tbody>
         </table>
       </div>
@@ -169,14 +220,20 @@
       </header>
 
       <form id="form-venta" class="form-venta" novalidate aria-label="Composición de venta">
-        <!-- Selector CLIENTE -->
+        <!-- Selector y Verificador de CLIENTE por ID -->
         <fieldset class="form-group venta-cliente">
           <legend>Cliente *</legend>
-          <div class="form-row">
-            <label for="venta-cliente">Seleccionar cliente</label>
-            <select id="venta-cliente" name="clienteId" required>
-              <option value="">Seleccionar cliente…</option>
-              <!-- Options se poblan por JS desde clientes[] -->
+          <div class="form-row form-row--inline">
+            <div style="flex: 1;">
+              <label for="venta-cliente-id-input">ID de cliente (permite verificar con <code>GET /clientes/{id}</code> o ingresar directo)</label>
+              <input type="number" id="venta-cliente-id-input" min="1" step="1" placeholder="Ingrese ID de cliente (ej: 1)">
+            </div>
+            <button type="button" id="btn-verificar-cliente-venta" class="btn btn-secundario">Verificar ID</button>
+          </div>
+          <div class="form-row" style="margin-top: 0.75rem;">
+            <label for="venta-cliente">O elegir cliente verificado en la sesión</label>
+            <select id="venta-cliente" name="clienteId">
+              <option value="">Seleccionar cliente verificado…</option>
             </select>
           </div>
         </fieldset>
@@ -184,17 +241,20 @@
         <!-- COMPOSER RENGLONES -->
         <fieldset class="form-group venta-renglones">
           <legend>Renglones de la venta</legend>
-          <div id="contenedor-renglones" class="renglones-lista">
-            <!-- Cada renglón se agrega por JS (CH-05) -->
-          </div>
+          <div id="contenedor-renglones" class="renglones-lista"></div>
           <div class="form-row">
-            <label for="venta-libro">Agregar libro</label>
-            <select id="venta-libro" name="libroId" required>
+            <label for="venta-libro">Seleccionar libro del catálogo</label>
+            <select id="venta-libro" name="libroId">
               <option value="">Seleccionar libro…</option>
-              <!-- Options se poblan por JS desde libros[] -->
             </select>
+            <label for="venta-libro-id-manual">O ingresar ID de libro manual (opcional, ej. para probar G-06)</label>
+            <input type="number" id="venta-libro-id-manual" min="1" step="1" placeholder="ID de libro manual (opcional)">
             <label for="venta-cantidad">Cantidad *</label>
             <input type="number" id="venta-cantidad" name="cantidad" required min="1" step="1" value="1" style="width: 80px;">
+            <label style="display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.25rem; font-weight: 400;">
+              <input type="checkbox" id="venta-forzar-renglon-separado" style="width: auto;">
+              Agregar como fila separada aunque el libro ya esté en la lista (prueba G-06 / 422)
+            </label>
             <button type="button" id="btn-agregar-renglon" class="btn btn-primario">Agregar</button>
           </div>
         </fieldset>
@@ -229,6 +289,7 @@
           <button type="reset" class="btn btn-secundario">Cancelar</button>
         </div>
         <div id="errores-venta" class="errores-formulario" aria-live="polite" hidden></div>
+        <div id="exito-venta" class="mensaje-exito" aria-live="polite" hidden></div>
       </form>
     </section>
 
@@ -256,7 +317,7 @@
         </table>
       </div>
 
-      <!-- MODAL DETALLE (hidden until needed) -->
+      <!-- MODAL DETALLE -->
       <dialog id="modal-detalle" class="modal-detalle" aria-labelledby="titulo-modal-detalle" aria-modal="true">
         <header class="modal-header">
           <h3 id="titulo-modal-detalle">Detalle de Venta</h3>
@@ -274,14 +335,14 @@
               <thead>
                 <tr>
                   <th scope="col">Libro</th>
-                  <th scope="col">ISBN</th>
+                  <th scope="col">ID Libro</th>
                   <th scope="col">Cantidad</th>
                   <th scope="col">Precio unit. (snapshot)</th>
                   <th scope="col">Subtotal</th>
                 </tr>
               </thead>
               <tbody id="tbody-detalle-renglones">
-                <!-- Se llena por JS al abrir modal (CH-05) -->
+                <!-- Se llena por JS al abrir modal -->
               </tbody>
             </table>
           </div>
@@ -296,7 +357,7 @@
 
   <!-- ===== FOOTER ===== -->
   <footer class="site-footer" role="contentinfo">
-    <p>Trabajo Práctico — Programación III — UNT/UTN</p>
+    <p>Trabajo Práctico Global — Programación III — UTN</p>
   </footer>
 
   <!-- ===== JS ENTRY POINT (ES Module) ===== -->

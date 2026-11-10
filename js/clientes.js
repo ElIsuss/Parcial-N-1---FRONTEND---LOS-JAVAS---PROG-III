@@ -1,5 +1,5 @@
 // ========================================
-// CLIENTES.JS — Alta y Listado de Clientes
+// CLIENTES.JS — Alta, Búsqueda por ID y Listado de Clientes
 // ========================================
 
 import { Data } from './data.js';
@@ -10,8 +10,8 @@ import { poblarSelectCliente } from './catalogo.js';
 // ========================================
 
 /**
- * Renderiza el listado de clientes registrados en #tabla-clientes.
- * Inserción segura (textContent) — NUNCA innerHTML. DEC-11
+ * Renderiza el listado de clientes registrados/consultados en #tabla-clientes.
+ * Inserción segura (textContent) — NUNCA innerHTML.
  */
 export function renderListadoClientes() {
   const tbody = document.querySelector('#tabla-clientes tbody');
@@ -28,7 +28,7 @@ export function renderListadoClientes() {
     tr.className = 'fila-vacia';
     const td = document.createElement('td');
     td.colSpan = 3;
-    td.textContent = 'No hay clientes registrados.';
+    td.textContent = 'No hay clientes cargados en la sesión. Creá uno o buscá por ID.';
     tr.appendChild(td);
     tbody.appendChild(tr);
     return;
@@ -36,8 +36,9 @@ export function renderListadoClientes() {
 
   clientes.forEach(cliente => {
     const tr = document.createElement('tr');
+    const nombre = cliente.nombre || cliente.nombreCompleto;
 
-    [cliente.id, cliente.nombreCompleto, cliente.email].forEach(valor => {
+    [String(cliente.id), nombre, cliente.email].forEach(valor => {
       const td = document.createElement('td');
       td.textContent = valor;
       tr.appendChild(td);
@@ -48,16 +49,12 @@ export function renderListadoClientes() {
 }
 
 // ========================================
-// FORMULARIO DE ALTA
+// FORMULARIO DE ALTA Y BÚSQUEDA POR ID
 // ========================================
 
-/**
- * Muestra la lista de errores de validación cerca del formulario.
- * DEC-13, DEC-14, RN-CLI-05
- * @param {HTMLElement} contenedor
- * @param {string[]} errors
- */
 function _mostrarErrores(contenedor, errors) {
+  const exitoEl = document.getElementById('exito-cliente');
+  if (exitoEl) exitoEl.hidden = true;
   if (!contenedor) return;
   while (contenedor.firstChild) {
     contenedor.removeChild(contenedor.firstChild);
@@ -72,34 +69,76 @@ function _mostrarErrores(contenedor, errors) {
   contenedor.hidden = false;
 }
 
+function _mostrarExitoCliente(cliente) {
+  const exitoEl = document.getElementById('exito-cliente');
+  const contenedorErrores = document.getElementById('errores-cliente');
+  if (contenedorErrores) contenedorErrores.hidden = true;
+  if (!exitoEl) return;
+  exitoEl.textContent = `Cliente #${cliente.id} "${cliente.nombre}" registrado correctamente (201 Created).`;
+  exitoEl.hidden = false;
+}
+
 /**
- * Vincula el formulario de alta de cliente (#form-cliente).
- * RN-CLI-01..05, RN-UX-01, RN-UX-02
+ * Vincula el formulario de alta de cliente (#form-cliente) y el buscador por ID (#form-buscar-cliente).
  */
 export function bindFormCliente() {
   const form = document.getElementById('form-cliente');
   const contenedorErrores = document.getElementById('errores-cliente');
-  if (!form) return;
+  const formBuscar = document.getElementById('form-buscar-cliente');
+  const inputBuscarId = document.getElementById('cliente-buscar-id');
+  const resultadoBuscar = document.getElementById('resultado-buscar-cliente');
 
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-
-    const resultado = Data.crearCliente({
-      nombreCompleto: form.elements['nombreCompleto']?.value,
-      email: form.elements['email']?.value
+  if (form) {
+    form.addEventListener('reset', () => {
+      if (contenedorErrores) contenedorErrores.hidden = true;
     });
 
-    if (!resultado.ok) {
-      _mostrarErrores(contenedorErrores, resultado.errors);
-      return;
-    }
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
 
-    if (contenedorErrores) contenedorErrores.hidden = true;
-    form.reset();
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
 
-    renderListadoClientes();
+      const resultado = await Data.crearCliente({
+        nombre: form.elements['nombreCompleto']?.value,
+        email: form.elements['email']?.value
+      });
 
-    // RN-CLI-05: refrescar selector de venta sin recargar
-    poblarSelectCliente(document.getElementById('venta-cliente'));
-  });
+      if (submitBtn) submitBtn.disabled = false;
+
+      if (!resultado.ok) {
+        _mostrarErrores(contenedorErrores, resultado.errors);
+        return;
+      }
+
+      if (contenedorErrores) contenedorErrores.hidden = true;
+      form.reset();
+      _mostrarExitoCliente(resultado.cliente);
+
+      renderListadoClientes();
+      poblarSelectCliente(document.getElementById('venta-cliente'));
+    });
+  }
+
+  if (formBuscar && inputBuscarId) {
+    formBuscar.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const idVal = inputBuscarId.value;
+      const btn = document.getElementById('btn-buscar-cliente-id');
+      if (btn) btn.disabled = true;
+
+      const res = await Data.fetchClientePorId(idVal);
+      if (btn) btn.disabled = false;
+
+      if (!res.ok) {
+        _mostrarErrores(resultadoBuscar, res.errors);
+        return;
+      }
+
+      if (resultadoBuscar) resultadoBuscar.hidden = true;
+      inputBuscarId.value = '';
+      renderListadoClientes();
+      poblarSelectCliente(document.getElementById('venta-cliente'));
+    });
+  }
 }
